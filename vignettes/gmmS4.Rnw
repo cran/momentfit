@@ -1,0 +1,2746 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage{amsthm}
+
+\usepackage[hmargin=2cm,vmargin=2.5cm]{geometry}
+\newtheorem{theorem}{Theorem}
+\newtheorem{col}{Corollary}
+\newtheorem{lem}{Lemma}
+\usepackage[utf8x]{inputenc}
+\newtheorem{ass}{Assumption}
+\usepackage{amsmath}
+\usepackage{verbatim}
+\usepackage[round]{natbib}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks,
+  citecolor=black,
+  filecolor=black,
+  linkcolor=black,
+  urlcolor=black
+}
+
+\bibliographystyle{plainnat}
+
+
+\author{Pierre Chauss\'e}
+\title{\textbf{Generalized Method of Moments with R}}
+\begin{document}
+
+\maketitle
+
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\Prob}{\mathrm{Pr}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Vect}{\mathrm{Vec}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\conP}{\overset{p}{\to}}
+\newcommand{\conD}{\overset{d}{\to}}
+\newcommand\R{ \mathbb{R} }
+\newcommand\N{ \mathbb{N} }
+\newcommand\C{ \mathbb{C} }
+\newcommand\rv{{\cal R}}
+\newcommand\Q{\mathbb{Q}}
+\newcommand\PR{{\cal R}}
+\newcommand\T{{\cal T}}
+\newcommand\Hi{{\cal H}}
+\newcommand\La{{\cal L}}
+\newcommand\plim{plim}
+\renewcommand{\epsilon}{\varepsilon}
+
+\abstract{This vignette presents the momentfit package, which is an attempt
+  to rebuild the gmm package using S4 classes and methods. The goal is
+  to facilitate the development of new functionalities.  }
+%\VignetteIndexEntry{Generalized Method of Moments with R}
+%\VignetteDepends{momentfit}
+%\VignetteKeywords{generalized method of moments, systems of equations, FIVE, SUR, 3SLS}
+%\VignettePackage{momentfit}
+%\VignetteEngine{knitr::knitr}
+<<echo=FALSE>>=
+library(knitr)
+opts_chunk$set(size='footnotesize')
+@ 
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Single Equation}\label{sec:single}
+\subsection{An S4 class object for moment based models} \label{sec:momentmodel}
+We consider models for which the $k\times 1$ coefficient vector
+$\theta$ is identified by the following vector of moment conditions:
+\[
+\E[g_i(\theta)]=0
+\]
+A model object contains information about the moment function
+$g_i(\theta)$, and the characteristics of the data. The following
+describes the different possibilities included in the package.
+\begin{enumerate}
+\item The linear model:
+\[
+Y_i = X_i'\theta + \epsilon_i,
+\]
+with the moment condition $\E[\epsilon_i(\theta)Z_i]=0$, where $X_i$
+is $k\times 1$ and $Z_i$ is $q\times 1$ with $q\geq k$. We consider
+four possibilities for the asymptotic variance of
+$\sqrt{n}\bar{g}_i(\theta)$:
+\begin{enumerate}
+\item[a)] ``iid'': Here we assume no autocorrelation and homoscedastic
+  error with $\Var(\epsilon_i|Z_i)=\sigma^2$, which implies that the
+  asymptotic variance $V$ is $\sigma^2\E[Z_iZ_i']$ and can be
+  estimated by:
+  \[
+  \hat{V} = \hat{\sigma}^2 \left(\frac{1}{n} \sum_{i=1}^n Z_iZ_i'\right),
+  \]
+  where $\hat{\sigma}^2=\frac{1}{n}\sum_{i=1}^n\hat{\epsilon}_i^2$,
+  $\hat{\epsilon}_i=Y_i-X_i'\hat{\theta}$ and $\hat{\theta}$ is a
+  consistent estimator of $\theta$.
+\item[b)] ``MDS'': We assume that $g_i(\theta)\equiv (\epsilon_iZ_i)$
+  is a martingale difference sequence with no additional assumption on
+  the conditional variance of the error term. Heteroscedasticity is
+  therefore allowed. The asymptotic variance is therefore
+  $V=\E(\epsilon_i^2Z_iZ_i')$, and can be estimated by:
+  \[
+  \hat{V} = \frac{1}{n}\sum_{i=1}^n \hat{\epsilon}_i^2Z_iZ_i',
+  \]
+which represents the HC0 version of the heteroscedasticity consistent
+covariance matrix (HCCM) estimator.
+\item[c)] ``HAC'': If we assume that $g_t(\theta)$ (t is used when we
+  have time series) is weakly dependent, the asymptotic covariance
+  matrix is $V=\Gamma_0 + \sum_{i=1}^{\infty} (\Gamma_i+\Gamma_i')$,
+  with $\Gamma_i=\E(\epsilon_t\epsilon_{t-i}Z_tZ_{t-i}')$. It can be
+  estimated using a kernel estimator:
+  \[
+  \hat{V} = \sum_{i=-M}^{M} K_h(i)\hat{\Gamma}_i,
+  \]
+  where $K_h(i)$ is a kernel that depends on the bandwidth $h$, and
+  $\hat{\Gamma}_i$ is an estimator of $\Gamma_i$.
+\item[d)] ``CL'': The sample is clustered. For one dimensional
+  clusters, let $\bar{g}_i(\theta)$ be the sample mean of the moment
+  function for cluster $i$ and $n_i$ be the number of observations in
+  that cluster. Then, the clustered covariance matrix of the sample
+  moment $\sqrt{n}\bar{g}(\theta)$ can be estimated as:
+  \[
+  \hat{V} = \frac{1}{n}\sum_{i=1}^{N_{cl}} n_i^2 \bar{g}_i(\hat{\theta}) \bar{g}_i'(\hat{\theta})
+  \]
+where $N_{cl}$ is the number of clusters. For higher dimensional
+clusters, like cities within provinces for example, we need to take
+into account that observations belong to more than one group. For a
+more detailed presentation with reference to recent developments, see
+\cite{berger-graham-zeileis17}.
+\end{enumerate}
+\item The nonlinear model:
+\[
+y_i(\theta) = x_i(\theta) + \epsilon_i,
+\]
+with the moment condition $\E[\epsilon_i(\theta)Z_i]=0$. , where
+$\theta$ is $k\times 1$ and $Z_i$ is $q\times 1$ with $q\geq k$. The
+only difference is that $\epsilon_i(\theta)$ is a nonlinear function
+of the coefficient vector $\theta$. For this case, the same three
+possibilities exist for the asymptotic variance.
+\item The functional or formula case: If we cannot represent the model
+  in a regression format with instruments, we simply write the moment
+  conditions as $\E[g_i(\theta)]$ with $g_i(\theta)$ being a
+  continuous and differentiable function from $\R^k$ to $\R^q$, with
+  $q\geq k$. Here, we do not distinguish ``iid'' from ``MDS''. We
+  therefore have two possible cases:
+  \begin{enumerate}
+    \item[a)] ``iid'' or ``MDS'': The asymptotic variance is
+      $V=E[g_i(\theta)g_i(\theta)']$ and can be estimated by its
+      sample counterpart.
+    \item[b)] ``HAC'': Same as for the linear case with
+      $\Gamma_i=E[g_t(\theta)g_{t-i}(\theta)']$.
+    \end{enumerate}  
+  The difference between the two types refer to the method used to
+  express the moments conditions in R. See below for examples. In
+  particular, a formula type can be used to define a Minimum Distance
+  Estimator (MDE) model. Moment conditions of MDE models can be
+  written as $g_i(\theta)=[\Psi(\theta)-f_i]$, where $\Psi(\theta)$ is
+  a $q\times 1$ vector of functions of $\theta$ that do not depend on
+  the data, and $f_i$ is a $q\times 1$ vector of functions of the
+  vector of observations $i$ that do not depend on $\theta$. It is
+  worth making the distinction because the efficient GMM can be
+  obtained in one step. We will discuss estimation below.
+\end{enumerate}
+
+Since the moment conditions are defined differently, we have four
+difference classes to represent the four models. Their common slots
+are all the arguments that specify $V$, which may include some
+specifications\footnote{The slot ``vcovOptions'' is a list of options
+  for the HAC, like the kernel or bandwidth, or any other type of
+  covariance matrix. For example, Cluster covariance matrices also
+  requires some specifications and will be included in that slot.},
+the names of the coefficients, the names of the moment conditions,
+$k$, $q$, $n$, and the argument ``isEndo'', a $k\time 1$ logical
+vector that indicates which regressors in $X_i$ is considered
+endogenous. It is considered endogenous if it is not part of $Z_i$. Of
+course, it makes no sense when $g_i(\theta)$ is not based on
+instruments.
+
+The main difference is the slots that define $g_i(\theta)$. For
+``linearModel'' class, the slots ``modelF'' and ``instF'' are
+model.frame's that define the regression model and the
+instruments. For ``nonlinearModel'', we have the following slots:
+``modelF'' is a data.frame for the nonlinear regression, ``instF'' is
+as for the linear case, and ``fRHS'' and ``fLHS'' are expressions to
+compute the right and left hand sides of the nonlinear regression. The
+function D() can then be used to obtain analytical derivatives. The
+class ``formulaModel'' is similar to the ``nonlinearModel'' class with
+the exception that the slots ``fRHS'' and ``fLHS'' are lists of
+expressions, one element per moment condition, and there is no slot
+``instF'' as there are no instruments. The additional slot ``isMDE''
+indicates if is it an MDE model. Finally, the ``functionModel'' class
+contains the slot ``fct'', which is a function of two arguments, the
+first being $\theta$, and returns a $n\times q$ matrix with the
+$i^{th}$ row being $g_i(\theta)'$. The slot ``dfct'' is an optional
+function with the same two arguments which returns the $q\times k$
+matrix of first derivatives of $\bar{g}(\theta)$. The slot ``X'' is
+whatever is needed as second argument of ``fct'' and ``dfct''. The
+last two classes also contain the slot ``theta0'', which is mainly
+used to validate the object. It is also used latter as starting values
+for ``optim'' if no other starting values are provided. For the
+nonlinear regression, it must be a named vector.
+
+Consider the following model:
+\[
+y = \theta_0 + \theta_1x_{1i} + \theta_2x_{2i} + \epsilon_i
+\]
+with the instruments $Z_i=\{1, x_{2i}, z_{1i}, z_{2i}\}'$ and iid
+errors. We could create an object of class ``linarModel'' as follows:
+<<warning=FALSE, message=FALSE>>=
+library(momentfit)
+data(simData)
+modelF <- model.frame(y~x1+x2, simData)
+instF <- model.frame(~x2+z1+z2, simData)
+mod1 <- new("linearModel", modelF=modelF, instF=instF, k=3L, q=4L, vcov="iid",
+             parNames=c("(Intercept)", "x1","x2"), n=50L, 
+             momNames=c("(Intercept)", "x2", "z1", "z2"), 
+             isEndo=c(FALSE, TRUE, FALSE, FALSE), smooth=FALSE)
+@ 
+
+The print method describes the model. 
+
+<<>>=
+mod1
+@ 
+
+Although there is a validity procedure when the object is created, it
+is not recommended to create it this way. Small error not detected by
+the validity method could result in estimation problems. The
+constructor is the function momentModel(). The above model can be
+created as follows\footnote{Notice that ``momentModel'' is the union
+  class for all moment models described above}:
+
+<<>>=
+mod1 <- momentModel(y~x1+x2, ~x2+z1+z2, data=simData, vcov="iid")
+mod1
+@ 
+
+The two other classes of object can be created the same way. Consider the following model:
+\[
+y_i = e^{\theta_0 + \theta_1x_{1i} + \theta_2x_{2i}} + \epsilon_i
+\]
+using the same instruments. The nonlinear model can be created as follows:
+
+<<>>=
+theta0 <- c(theta0=1, theta1=1, theta2=2)
+mod2 <- momentModel(y~exp(theta0+theta1*x1+theta2*x2), ~x2+z1+z2, theta0, 
+                 data=simData, vcov="iid")
+mod2
+@ 
+
+The meaning of the number of endogenous variables in the nonlinear
+case is slightly different from linear models. In linear models, it is
+the number of endogenous variables among the right hand side
+variables. For the nonlinear case, variables may appear on both sides,
+which makes it hard to identify the response variable. The number
+reported is therefore the number of variables that are not among the
+instruments. In mod2, the endogenous variables are $y$ and $x_1$.
+
+For the functional case, suppose we want to estimate the mean and
+variance of a normal distribution using the following moment
+condition:
+\[
+E\begin{pmatrix}
+x_i-\mu\\
+(x_i-\mu)^2 - \sigma^2\\
+(x_i-\mu)^3 \\
+(x_i-\mu)^4 - 3\sigma^4
+\end{pmatrix}=0
+\]
+The functions ``fct'' and ``dfct'' would be
+
+<<>>=
+fct <- function(theta, x)
+    cbind(x-theta[1], (x-theta[1])^2-theta[2],
+          (x-theta[1])^3, (x-theta[1])^4-3*theta[2]^2)
+dfct <- function(theta, x)
+    {
+        m1 <- mean(x-theta[1])
+        m2 <- mean((x-theta[1])^2)
+        m3 <- mean((x-theta[1])^3)
+        matrix(c(-1, -2*m1, -3*m2, -4*m3, 
+                 0, -1, 0, -6*theta[2]), 4, 2)
+    }
+@ 
+
+The object can than be created:
+
+<<>>=
+theta0=c(mu=1,sig2=1)
+x <- simData$x3
+mod3 <- momentModel(fct, x, theta0, grad=dfct, vcov="iid")
+mod3
+@ 
+
+We can also use the non-central moments and write the model as a MDE
+model using the formula type. The first four non-central moments are:
+\[
+E\begin{pmatrix}
+x_i-\mu\\
+x_i^2-(\mu^2+\sigma^2)\\
+x_i^3-(\mu^3+3\mu\sigma^2) \\
+x_i^4 - (\mu^4+6\mu^2\sigma^2+3\sigma^4)
+\end{pmatrix}=0
+\]
+If we name $\sigma^2$, ``sig'',  and $\mu$, ``mu'', we can create the model as follows.
+
+<<>>=
+theta0=c(mu=1,sig=1)
+dat <- data.frame(x=x, x2=x^2, x3=x^3, x4=x^4)
+gform <- list(x~mu,
+              x2~mu^2+sig, 
+              x3~mu^3+3*mu*sig,
+              x4~mu^4+6*mu^2*sig+3*sig^2)
+mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
+mod4
+@ 
+
+We could have created the model as
+
+<<eval=FALSE>>=
+dat <- data.frame(x=x)
+gform <- list(x~mu,
+              x^2~mu^2+sig, 
+              x^3~mu^3+3*mu*sig,
+              x^4~mu^4+6*mu^2*sig+3*sig^2)
+mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
+@ 
+
+But the first approach may speed up estimation quite a bit for large
+dataset because it reduces the number of operations.
+
+Covariance matrix options can be modified using the argument
+``vcovOptions''. For example, if we want an HAC matrix, several
+options such as the kernel and bandwidth can be modified. By default,
+the HAC is computed using the Quadratic Spectral kernel and the
+optimal bandwidth of \cite{andrews91}. To modify the options, we
+proceed this way:
+
+<<>>=
+mod.hac <- momentModel(y~x1+x2, ~x1+z2+z3, vcov="HAC", 
+                    vcovOptions=list(kernel="Bartlett", bw="NeweyWest"),
+                    data=simData)
+mod.hac
+@ 
+
+See the help on ``vcovHAC'' of the sandwich package for more details
+on all possible parameters. For clustered covariance, we need to
+specify the clusters and some other options.  Lets consider the
+following dataset:
+
+<<>>=
+data("InstInnovation", package = "sandwich")
+@ 
+
+We can use one-way clustering:
+
+<<>>=
+mod.cl1 <- momentModel(sales~value, ~value, vcov="CL", 
+                    vcovOptions=list(cluster=~company),
+                    data=InstInnovation)
+mod.cl1
+@ 
+
+or a two-way clustering:
+
+<<>>=
+mod.cl2 <- momentModel(sales~value, ~value, vcov="CL", 
+                    vcovOptions=list(cluster=~company+year, multi0=TRUE),
+                    data=InstInnovation)
+mod.cl2
+@ 
+
+The clustered covariance is computed using the ``meatCL'' function of
+the sandwich package. For more options, see its help file.
+
+\subsubsection{Smoothed moment conditions}\label{sec:smooth}
+
+In the case of weakly dependent moment conditions, some estimation
+methods require the conditions to be smoothed using a kernel
+approach. In that case, moment conditions are defined as:
+
+\[
+g^w_t(\theta) = \sum_{s=-m}^m w(s)g_{t+s}(\theta)
+\]
+
+The optimal bandwidth is computed when the model is created, and
+remains the same during the estimation process, unless another one is
+specified. Since we need an estimate of $\theta$ to compute the
+optimal bandwidth, the one-step GMM using the identity matrix as
+weighting matrix is used.
+
+The default kernel is the ``Truncated'' one, and the default bandwidth
+is based on \cite{andrews91}. The bandwidth is not based on the
+smoothing kernel, but on the implied kernel for the HAC
+estimation. \cite{smith11} shows that when $g_t(\theta)$ is replaced
+by $g^w_t(\theta)$, $\hat{V}=\sum_{i=1}^n
+g^w_t(\theta)g^w_t(\theta)'/n$ is an HAC estimator of the asymptotic
+covariance matrix of $\sqrt{n}\bar{g}(\theta)$, with Bartlett kernel
+when the smoothing kernel is the Truncated, and with Parzen kernel
+when the smoothing kernel is the Bartlett. The optimal bandwidth for
+the Truncated kernel is therefore based on the Bartlett kernel, and
+the optimal bandwidth is based on the Parzen kernel when the smoothing
+kernel is the Bartlett.
+
+To create a model with smoothed moment conditions, the argument
+``smooth'' of \textit{momentModel} must be set to TRUE. In that case,
+the slot ``vcov'' is automatically set to ``MDS'', because
+$g^w_t(\theta)$ is assumed to be a martingale difference sequence, and
+no other value is allowed. It is possible to modify the specifications
+of the kernel and bandwidth through the argument ``vcovOptions'' (See
+help(vcovHAC) from the sandwich package for all possible
+options). Notice that the kernel type that is passed in
+``vcovOptions'' is the implied kernel for the HAC estimation, not the
+smoothing one. The following shows the default specifications:
+
+<<>>=
+smod1 <- momentModel(y~x1+x2, ~x2+z1+z2, data=simData, smooth=TRUE)  
+smod1
+@ 
+
+See in the following example that the Parzen kernel is
+selected, which implies a Bartlett kernel for the smoothing of
+$g_t(\theta)$.
+
+<<>>=
+smod2 <- momentModel(y~x1+x2, ~x2+z1+z2, data=simData, smooth=TRUE,
+                     vcovOptions=list(kernel="Parzen", bw="NeweyWest", prewhite=1))  
+smod2
+@
+
+The smoothing specifications are stored in the slot ``sSpec'' of the
+model object. The slot only admits objects of class ``sSpec''. We can
+see that a \textit{print} method for that type of object exists:
+
+<<>>=
+smod2@sSpec
+@ 
+
+The slot ``w'' is a ``tskernel'' object from the ``stats'' package:
+
+<<>>=
+smod2@sSpec@w
+@ 
+
+The other slots are ``bw'' for the bandwidth, ``bwMet'' for the
+bandwidth method, ``kernel'' for the type of kernel, and a two
+dimentional numeric vector ``k''. The elements of ``k'' are
+respectively $k_1=\int_{-\infty}^\infty k(s) ds$ and
+$k_2=\int_{-\infty}^\infty k(s)^2 ds$, where $k(s)$ is the smoothing
+kernel. The vector is needed to compute consistent estimators of the
+asymptotic Jacobian of $\bar{g}(\theta)$, and the asymptotic covariance
+matrix of $\sqrt{n}\bar{g}(\theta)$, using $g_t^w(\theta)$ (See
+Theorem 2.5 of \cite{smith11}). Those estimators are
+
+\[
+\hat{G}(\theta) = \frac{1}{nk_1} \sum_{t=1}^n \frac{d g_t^w(\theta)}{d \theta}
+\]
+
+and
+
+\[
+\hat{V}(\theta) = \frac{b_n}{nk_2} \sum_{t=1}^ng_t^w(\theta)g_t^w(\theta)'\,,
+\]
+
+where $b_n$ is the bandwidth. 
+
+
+\subsection{Methods for momentModel Classes} \label{sec:momentmodel-methods}
+
+\begin{itemize}
+\item \textit{residuals}: Only for ``linearModel'' and ``nonlinearModel'',
+  it returns $\epsilon(\theta)$:
+
+<<>>=
+theta0 <- c(theta0=1, theta1=1, theta2=2)
+e1 <- residuals(mod1, c(1,2,3))
+e2 <- residuals(mod2, theta0)
+@ 
+
+\item \textit{Dresiduals}: Only for ``linearModel'' and
+  ``nonlinearModel'', it returns the $n\times k$ matrix
+  $d\epsilon(\theta)/d\theta$:
+
+<<>>=
+theta0 <- c(theta0=1, theta1=1, theta2=2)
+e1 <- Dresiduals(mod1)
+e2 <- Dresiduals(mod2, theta0)
+@     
+
+Notice that the coefficient $\theta$ is not required for linear
+models, but no error is returned if it is. It is just not used. For
+nonlinear regressions, the derivatives are obtained analytically using
+D() from the \textit{utils} package.
+
+\item \textit{model.matrix}: For ``linearModel'' and ``nonlinearModel''
+  only. For both classes, it ca be used to get the matrix of
+  instruments:
+
+<<>>=
+Z <- model.matrix(mod1, type="instruments")
+@ 
+
+For ``linearModel'' only, it can be used to get the matrix of regressors $X$
+
+<<>>=
+X <- model.matrix(mod1)
+@ 
+
+\item \textit{modelResponse}: For linear model only, it returns the
+  vector of response. It is not defined for ``nonlinearModel'' classes
+  because the left hand side is not always defined.
+
+<<>>=
+Y <- modelResponse(mod1)
+@ 
+
+\item "[": It creates a new object of the same class with a subset of
+  moment conditions:
+
+<<>>=
+mod1[1:3]
+mod2[c(1,2,4)]
+mod3[-1]
+@   
+
+\item \textit{as}: ``linearModel'' can be converted into a
+  ``nonlinearModel'' or ``functionModel''. The former is userful when we
+  impose nonlinear restrictions on the coefficients.
+
+<<>>=
+mod4 <- as(mod1, "nonlinearModel")
+@   
+
+Notice, however, that coefficient names and the variable names in
+modelF change in this case.  It is done to avoid invalid variable and
+parameter names in the expressions. It will happens with the intercept
+or if there are interactions or transformations using the identity
+function I().
+
+<<>>=
+mod4@parNames
+mod4@fLHS
+mod4@fRHS
+@ 
+
+\item \textit{subset}: As for the S3 method, it creates the same class
+  of object with a subset of the sample:
+<<>>=
+subset(mod1, simData$x1>4)
+@   
+
+\item \textit{evalMoment}: It computes the $n\times q$ matrix of
+  moments, with the $i^{th}$ row being $g_i(\theta)'$:
+<<>>=
+gt <- evalMoment(mod1, 1:3)
+@   
+
+\item \textit{evalDMoment}: It computes the $p\times k$ matrix of
+  derivatives of the sample mean of $g_i(\theta)$ (the matrix $G$
+  above):
+<<>>=
+theta0 <- c(theta0=.1, theta1=1, theta2=-2)
+evalDMoment(mod2, theta0)
+@ 
+
+The optional argument ``impProb'' is used to replace the uniform
+weight $1/n$ by a vector of probabilities, when the sample mean is
+computed. The optional argument ``lambda'' is a $q\times 1$ vector. When
+provides, it returns an $n\times k$ matrix with the $i^{th}$ row being
+equal to the derivative of $\lambda'g_i(\theta)$ with respect to
+$\theta$. It is needed by some estimation methods. 
+
+\item \textit{vcov}: It computes $\hat{V}$ using the
+  specification of the model as described in the previous section. For
+  example, if the model is linear with MDS error, it computes
+  $\hat{V}=\frac{1}{n}\sum_{i=1}^n \hat{\epsilon}_i^2 Z_iZ_i'$.
+
+
+<<>>=
+vcov(mod1, theta=c(1,1,1))
+@ 
+
+For smoothed moment condition, \textit{vcov} uses the formula given in
+Section \ref{sec:smooth}.
+
+\item \textit{momentStrength}: For ``linearModel'' only (for now), it
+  computes the first stage F-test to measure the strength of the
+  instruments:
+
+<<>>=
+momentStrength(mod1)
+@ 
+
+\item \textit{update}: This method is used to modify existing
+  objects. For now, only the covariance structure can be modified,
+  which includes changing the ``smooth'' argument. We could, for
+  example, change the covariance structure of mod1 from ``iid'' to
+  ``MSD'':
+  
+<<>>=
+update(mod1, vcov="MDS")
+@   
+
+To change it to ``CL'', the vcovOptions must be provided because the
+cluster identifier is needed. In the case of conversion to ``HAC'',
+not providing vcovOptions will results in setting the specifications
+to the default ones.
+
+<<>>=
+update(mod1, vcov="HAC")
+@ 
+
+For more flexibility, \textit{update} offers more options when the
+fitted model comes from the gmm4() function. See Section
+\ref{sec:momentmodel-gmm4} below for more details. We can also update
+the model and redefine it as smoothed moments:
+
+<<>>=
+update(mod1, smooth=TRUE)
+@ 
+
+\end{itemize}
+
+Other methods will be presented below as they require to define other
+classes.
+
+
+\subsection{Restricted models} \label{sec:momentmodel-rest}
+We can create objects of class ``rlinearModel'', ``rnonlinearModel'',
+``rformulaModel'' or ``rfunctionModel'' using the method
+\textit{restModel} and print the restrictions using the
+\textit{printRestrict} method.
+
+Lets first create a new model with more regressors:
+
+<<>>=
+UR.mod1 <- momentModel(y~x1+x2+x3+z1, ~x1+x2+z1+z2+z3+z4, data=simData)
+@ 
+
+We can impose restrictions in two ways. Using $R\theta=q$ format:
+
+<<>>=
+R1 <- matrix(c(1,1,0,0,0,0,0,2,0,0,0,0,0,1,-1),3,5, byrow=TRUE)
+q1 <- c(0,1,3)
+R1.mod1 <- restModel(UR.mod1, R1, q1)
+R1.mod1
+@ 
+
+Or using character vectors. As long as it uses the parameter names, it
+will work fine.
+
+<<>>=
+R2 <- c("x1","2*x2+z1=2", "4+x3*5=3")
+R2.mod1 <- restModel(UR.mod1, R2)
+printRestrict(R2.mod1)
+@ 
+
+If parameters have special names because of the way the regression is
+defined, it will also work fine:
+
+<<>>=
+UR.mod2 <- momentModel(y~x1*x2+exp(x3)+I(z1^2), ~x1+x2+z1+z2+z3+z4, data=simData)
+R3 <- c("x1","exp(x3)+2*x1:x2", "I(z1^2)=3")
+R3.mod2 <- restModel(UR.mod2, R3)
+printRestrict(R3.mod2)
+@
+
+For ``nonlinearModel'', only character vectors or lists of formulas are
+allowed. The restriction must also be written as one coefficient as a
+function of the others.
+
+<<>>=
+R1 <- c("theta1=theta2^2")
+restModel(mod2, R1)
+printRestrict(restModel(mod2, theta1~theta2))
+@ 
+
+Restrictions can also be imposed on ``functionModel'':
+
+<<>>=
+restModel(mod3, "mu=0.5")
+@ 
+
+All methods described in the previous subsections also apply to
+restricted models. However, when $\theta$ is need, it must be of the
+right length, which is $k$ minus the number of restrictions. Many of
+these methods use the \textit{coef} method to obtain the unrestricted
+version of the coefficients and call the method for unrestricted
+models.
+
+For example, in the following model
+
+<<>>=
+printRestrict(R2.mod1)
+@ 
+
+There are only 2 restricted coefficients, the intercept and the
+coefficient of $(-0.5x_2+z_1)$. Suppose there are respectively equal
+to 1.5 and 0.5, then the unrestricted version is
+
+<<>>=
+coef(R2.mod1, c(1.5,.5))
+@ 
+
+Notice that any restricted class object contains its unrestricted
+version. For example, ``rlinearModel'' is a class that contains a
+``linearModel'' class object plus a few additional slots. We can
+therefore use the \textit{as} method directly to convert a restricted
+model to its unrestricted counterpart. We can therefore compute the
+residuals from the restricted model as follows:
+
+<<>>=
+e1 <- residuals(as(R2.mod1, "linearModel"), 
+               coef(R2.mod1, c(1.5,.5)))
+@ 
+
+It is identical to use the ``rlinearModel'' method directly:
+
+<<>>=
+e2 <- residuals(R2.mod1, c(1.5,.5))
+all.equal(e1,e2)
+@ 
+
+Other methods that behave in the same way include \textit{evalMoment}
+and \textit{vcov}. The methods that will produce different
+results include \textit{Dresiduals}, \textit{evalDMoment},
+\textit{model.matrix}, and \textit{modelResponse}. Restrictions affect
+derivatives and the left and right hand sides of regression models. Fo
+example:
+
+<<>>=
+R1 <- c("theta1=theta2^2")
+R1.mod2 <- restModel(mod2, R1)
+evalDMoment(mod2, c(theta0=1, theta1=1, theta2=1))
+evalDMoment(R1.mod2, c(theta0=1, theta2=1))
+@ 
+
+Every method uses the method \textit{modelDims} to extract the
+information for a model. For example, the slot ``parNames'' of mod2
+and R1.mod2 are the same even if $theta1$ is not present in the
+restricted model.
+
+<<>>=
+mod2@parNames
+R1.mod2@parNames
+@ 
+
+When we need the right specifications of the model, we need to extract
+that information using \textit{modelDims}.
+
+<<>>=
+modelDims(mod2)$parNames
+modelDims(mod2)$k
+modelDims(R1.mod2)$parNames
+modelDims(R1.mod2)$k
+@ 
+
+\subsection{Generalized method of moments}\label{sec:gmm}
+
+In this section, we present the GMM method for fitting the different
+types of moment based models described in the previous section. The
+estimator is defined as
+\[
+\hat{\theta}(W) = \arg\min_\theta \bar{g}(\theta)'W\bar{g}(\theta)
+\]
+Under some regularity conditions \citep[see][]{hansen82}, we have the
+following result:
+\[
+\sqrt{n}\Big(\hat{\theta}(W)-\theta\Big) \conD N\Big(0,(G'WG)^{-1}G'WVWG(G'WG)^{-1} \Big),
+\]
+where $G=\E[dg_i(\theta)/d\theta]$ and $V$ is the asymptotic variance
+of $\sqrt{n}\bar{g}(\theta)$. We can therefore use the following
+approximation for inference:
+\[
+\hat{\theta}(W) \approx N\Big(\theta,(\hat{G}'W\hat{G})^{-1}\hat{G}'W\hat{V}W\hat{G}(\hat{G}'W\hat{G})^{-1}/n\Big) 
+\]
+with $\hat{G} = \frac{1}{n}\sum_{i=1}^n dg_i(\hat{\theta}(W))/d\theta$
+and $\hat{V}$ is some consistent estimate $V$. Therefore, the property
+depends on the method, which in this case is simply characterized by
+the choice of the weighting matrix $W$, and on the statistical
+properties of $g_i(\theta$). The next section present the different
+types of $W$, and introduce a new class.
+
+
+\subsubsection{A class object for moment Weights} \label{sec:momentmodel-weights}
+
+Now that we have our model classes well defined, we need a way to
+construct a weighting matrix. We could simply define $W$ as a matrix
+and move on to the estimation section, but in an attempt to make the
+estimation computationally more efficient and numerically stable,
+we construct the weights in a particular way depending on its
+structure. There is in fact an optimal choice for $W$ that minimizes
+the asymptotic variance of the GMM estimator. If $W=V^{-1}$, the above
+property becomes:
+\[
+\sqrt{n}\Big(\hat{\theta}(V^{-1})-\theta\Big) \conD N\Big(0,[G'V^{-1}G]^{-1}\Big),
+\]
+The new covariance matrix $[G'V^{-1}G]^{-1}$ is smaller than the one
+based on other $W$ in the sense that the difference (the second minust
+the first) is negative definite. The inverse $V^{-1}$ may have to be
+computed several times for inference or simply for estimation if we
+use iterative GMM of CUE. It is therefore worth finding a way to
+reduce the number of potentially unstable operations. For example, in
+the linear or nonlinear model with iid errors,
+$V^{-1}=[\sigma^2\E(Z_iZ_i')]^{-1}$, and can be estimated by
+\[
+\hat{V} = \frac{1}{\hat{\sigma}^2}\left(\frac{1}{n}\sum_{i=1}^n Z_iZ_i'\right)^{-1}
+\]
+Therefore two $\hat{V}$'s differ only by their estimates of
+$\sigma^2$. It is therefore not necessary to recompute the second term
+each time. In fact, it is even not necessary to compute the sum. A
+more stable way would be to store the QR decomposition of the $n\times
+q$ matrix $Z$. The ``momentWeights'' class store only what is
+needed. It can be created by the \textit{evalWeights} method. It is a
+method for the union class ``momentModel'', which includes all
+restricted and unrestricted model classes. The method has three
+arguments, the ``momentModel'', the vector of coefficients, and the
+type of weights. The third argument can be a matrix, if we want to
+provide our own fixed one, the character "ident", to create an
+identity matrix or, which is the default, the character "optimal". In
+the latter case, the efficient weighting matrix is computed based on
+the characteristics of the ``momentModel'' specified when the object
+was created.
+
+There are two ways of creating an identity. The first way is to use
+the character "ident". In this case, it is not necessary to provide a
+vector of coefficients.
+
+<<>>=
+model <- momentModel(y~x1, ~z1+z2, data=simData, vcov="iid") ## lets create a simple model
+wObj <- evalWeights(model, w="ident")
+@ 
+
+The \textit{show} method for the ``momentWeights'' object prints the
+matrix as it should look like. If it is the efficient matrix, the
+inverse is computed and printed. It is not too efficient but when do
+we really need to see it? For the one we just created, we get
+
+<<>>=
+wObj
+@ 
+
+Only a character string is printed because the identity is not
+actually created. After all, why should we? If we need to compute
+$G'IG$, we do not want to create $I$ and do the operation, but rather
+compute $G'G$. That's how things are done in the package. For this
+reason, the second way of creating an identity weighting matrix is not
+recommended:
+
+<<>>=
+evalWeights(model, w=diag(3))
+@ 
+
+The optimal matrix at $\theta$ can be obtained without specifying $w$.
+
+<<>>=
+wObj <- evalWeights(model, theta=c(1,2))
+@ 
+
+The type slot indicates how the weighting matrix is stored.
+
+<<>>=
+wObj@type
+@ 
+
+Here the QR decomposition is store because vcov="iid". For any
+``momentModel'' including ``functionModel'' classes, with vcov="MDS", the
+QR decomposition of the $n\times q$ matrix of moment conditions is
+stored. It avoids having to compute $g(\theta)'g(\theta)$. For HAC,
+there is no gain in storing the QR decomposition. The type is then
+``chol'', which indicates that the Cholesky upper triangular matrix is
+stored:
+
+<<>>=
+model2 <- momentModel(y~x1, ~z1+z2, data=simData, vcov="HAC")
+evalWeights(model2, c(1,2))@type
+@ 
+
+When the matrix is provided, the type is ``weights'', which indicates
+that no inversion is needed
+
+<<>>=
+evalWeights(model, w=diag(3))@type
+@ 
+
+The weights matrix is used to compute the vector of estimates, its
+covariance matrix and to do inference. Most operations ar in the form
+$A'WB$ for matrices $A$ and $B$. How do we compute those knowing that
+it depends on how $W$ is stored in the object. The method
+\textit{quadra} does it for us. Consider the following optimal
+weighting matrix, which is stored as a QR decomposition:
+
+<<>>=
+wObj <- evalWeights(model, theta=1:2)
+@ 
+
+Let compute $G$ and $\bar{g}(\theta)$
+
+<<>>=
+G <- evalDMoment(model, theta=1:2)
+gbar <- colMeans(evalMoment(model, theta=1:2))
+@ 
+
+If we need to compute $\bar{g}'W\bar{g}$, which is the objective
+function that we want to minimize, we do the following:
+
+<<>>=
+quadra(wObj, gbar)
+@ 
+
+To compute $G'W\bar{g}$, which is the first order condition of the
+minimization problem, we proceed as follows:
+
+<<>>=
+quadra(wObj, G, gbar)
+@ 
+
+If we only want $W$, we only use the weights as argument.
+
+<<>>=
+quadra(wObj)
+@ 
+
+It is what the \textit{print} method calls before printing the
+object. Finally, the "[" method can be used to create another
+  ``momentWeights'' object with a subset of the moment conditions. Only
+  one argument is needed, and the slot ``type'' of the object is
+  converted into "weights".
+  
+<<>>=
+wObj[1:2]
+@   
+
+We just saw a way of computing the objective function using
+\textit{quadra}, but is can also be done using the
+\textit{evalGmmObj} method. In this case, the weights is not
+necessarily based on the same coefficient as $\bar{g}$, which is often
+the case in GMM estimations:
+
+<<>>=
+theta0 <- 1:2
+wObj <- evalWeights(model, theta0)
+theta1 <- 3:4
+evalGmmObj(model, theta1, wObj)
+@ 
+
+Notive that the method returns $n\bar{g}'W\bar{g}$. 
+
+\subsubsection{The \textit{solveGmm} Method} \label{sec:momentmodel-solve}
+
+The main method to estimate a model for a given $W$ is
+\textit{solveGmm}. The methods require a momentWeights object as
+second argument. For ``nonlinearModel'', ``functionModel'' and
+``formulaModel'' classes, there are two more optional arguments. The
+first is ``theta0'', which is the starting value to pass to the
+minimization algorithm. If not provided, the one stored in the model
+object is used. The second is ``algo'' which specifies which algorithm
+to use to minimize the objective function. By default, \textit{optim}
+is used. The only other choice for now is \textit{nlminb}. The default
+method for \textit{optim} is ``BFGS'', but all arguments of the
+algorithm can be modified by specifying them directly in the call of
+\textit{solveGmm}.
+
+The method simply minimizes $\bar{g}(\theta)'W\bar{g}(\theta)$ for a
+given $W$. For ``linearModel'' classes, the analytical solution is
+used. It is therefore the prefered class to use when it is
+possible. For all other classes, the solution is obtained by the
+selected algorithm. For ``nonlinearModel'' and ``formulaModel'', the
+gradian of the objective function, $2nG'W\bar{g}$ is passed to the
+algorithm using the analytical derivative of the moment conditions
+(the \textit{evalDMoment} method). For ``functionGMM'' classes, $G$ is
+computed numerically using \textit{numericDeriv} unless $dfct$ was
+provided when the object was created. The \textit{solveGmm} method
+returns a vector of coefficients and a convergence code. The latter is
+null for linear models and is the code returned by the algorithm
+otherwise.
+
+Consider the following linear model:
+
+<<>>=
+mod <- momentModel(y~x1, ~z1+z2, data=simData, vcov="MDS")
+@ 
+
+We can estimate the model using the identity matrix as weights as follows:
+
+<<>>=
+wObj0 <- evalWeights(mod, w="ident")
+res0 <- solveGmm(mod, wObj0)
+res0$theta
+@ 
+
+For two-step GMM, we just need to recompute the weighting matrix and
+call the method again.
+
+<<>>=
+wObj1 <- evalWeights(mod, res0$theta)
+res1 <- solveGmm(mod, wObj1)
+res1$theta
+@ 
+
+We could iterate and get the iterative GMM estimator. The result may
+be different if we express the linear model in a nonlinear way or
+using a function, which is not recommended.
+
+<<>>=
+solveGmm(as(mod, "nonlinearModel"), wObj1)$theta
+solveGmm(as(mod, "functionModel"), wObj1)$theta
+@ 
+
+Consider now the above nonlinear model that we repeat here.
+
+<<>>=
+theta0 <- c(theta0=0, theta1=0, theta2=0)
+mod2 <- momentModel(y~exp(theta0+theta1*x1+theta2*x2), ~x2+z1+z2, theta0, 
+                 data=simData, vcov="MDS")
+wObj0 <- evalWeights(mod2, w="ident")
+res1 <- solveGmm(mod2, wObj0, control=list(maxit=2000))
+res1
+solveGmm(mod2, wObj0, method="Nelder", control=list(maxit=2000))
+solveGmm(mod2, wObj0, algo="nlminb", control=list(iter.max=2000))
+@ 
+
+Notice that there is no signature for restricted models. However, it
+is not needed since they inherit from their unrestricted counterpart
+and the same procedure is needed to estimate them. Suppose, for
+example, that we want to impose the restriction $\theta_1=\theta_2^2$.
+
+<<>>=
+R1 <- c("theta1=theta2^2")
+rmod2 <- restModel(mod2, R1)
+res2 <- solveGmm(rmod2, wObj0, control=list(maxit=2000))
+res2
+@ 
+
+The unrestricted version can be extracted using \textit{coef}.
+
+<<>>=
+coef(rmod2, res2$theta)
+@ 
+
+\subsubsection{GMM Estimation: the \textit{gmmFit} method} \label{sec:momentmodel-gmmfit}
+
+For most users, what we presented above will rarely be used. What they
+want is a way to estimate their models without worrying about how it
+is done. The \textit{gmmFit} method is the main method to estimate
+models. The only requirement is to first create a
+``momentModel''. Before going into all the details, the most important
+arguments to set is the object, which is a ``momentModel'' class, and
+a type of GMM. The different types are: (1) ``twostep'' for two-step
+GMM, which is the default, (2) ``iter'' for iterative GMM, (3) ``cue''
+for continuously updated GMM , or (4) ``onestep'' for the one-step
+GMM.
+
+In this package, the one-step GMM means the estimation using the
+identity matrix as $W$. It is therefore not an efficient GMM. The
+two-step GMM, without any other argument is computed as follows:
+\begin{enumerate}
+  \item Define $W_0$ as being the identity matrix.
+  \item Get $\hat{\theta}_1\equiv \hat{\theta}(W_0)$ 
+  \item Compute $W_1=[\hat{V}(\hat{\theta}_1)]^{-1}$.
+  \item Get $\hat{\theta}_2 \equiv \hat{\theta}(W_1)$.
+\end{enumerate}
+For the iterative GMM we proceed as follows:
+\begin{enumerate}
+  \item Define $W_0$ as being the identity matrix.
+  \item Get $\hat{\theta}_1\equiv \hat{\theta}(W_0)$ 
+  \item Compute $W_1=[\hat{V}(\hat{\theta}_1)]^{-1}$.
+  \item Get $\hat{\theta}_2 \equiv \hat{\theta}(W_1)$.
+  \item If
+    $\|\hat{\theta}_1-\hat{\theta}_2\|/(1+\|\hat{\theta}_1\|)<itertol$,
+    where $itertol$ is a user defined tolerance level,
+    stop. Otherwise, set $\hat{\theta}_1=\hat{\theta}_2$ and go back
+    to 3. By default, $itertol=10^{-7}$.
+\end{enumerate}
+CUE is a one step efficient GMM method in which
+$W=\hat{V}(\theta)$. The solution is obtained by minimizing
+$n\bar{g}(\theta)[\hat{V}(\theta)]^{-1}\bar{g}(\theta)$.
+
+There are two special cases that are worth mentioning. The first case
+applies to all ``momentModel''. If $q=k$, the model is
+just-identified. In that case, in theory, the choice of $W$ has no
+effect on the solution. Therefore, by default, \textit{gmmFit} will
+automatically set $W$ to the identity and return the one-step GMM
+solution. Setting the argument type to another value will therefore
+have no effect on the result. For nonlinear models, however, the
+weighting matrix may affect the ability of the algorithm to find the
+solution. If we consider, for example, the model in which parameters
+of a normal distribution are estimated using non-central moments by
+the MDE method. In that case, the different scales of the moment
+conditions complicates the problem. The \textit{gmmFit} method
+allows the user to provide a weighting matrix, in which case, the
+solution is obtained by minimizing $n\bar{g}(\theta)'W\bar{g}(\theta)$
+instead of $n\bar{g}(\theta)'\bar{g}(\theta)$. We will give an example
+below.
+
+Second, when ``vcov'' is set to ``iid'' in either a linearGMM or a
+``nonlinearModel'' model, the matrices $W_1$ and $W_2$ are proportional
+to each other. They therefore lead to the same solution. As a result,
+the two-step GMM, iterative GMM and CUE produce identical solution. In
+particular, if the model is linear, the solution corresponds to the
+two-stage least squares solution. In fact, \textit{gmmFit} calls the
+method \textit{tsls} in that case. We will look at the method below.
+
+The \textit{gmmFit} method returns the S4 class object
+``gmmfit''. The object contains the vector of coefficient estimates,
+the ``momentWeights'' used to obtain it, the model object and other
+information about the method and convergence. We will cover its
+methods in the next section. The only one we introduce now is the
+\textit{show} method which prints the model info, the estimation
+method and the coefficient estimates. To avoid printing the model, we
+can set the argument ``model'' of print to FALSE.
+
+<<>>=
+mod <- momentModel(y~x1, ~z1+z2, data=simData, vcov="MDS")
+gmmFit(mod, type="onestep")
+print(gmmFit(mod, type="twostep"), model=FALSE)
+print(gmmFit(mod, type="iter"), model=FALSE)
+@ 
+
+For nonlinear models, it is possible to pass arguments to
+\textit{optim} and to set a different starting value with the argument
+``theta0''.
+
+<<>>=
+theta0 <- c(theta0=0, theta1=0, theta2=0)
+mod2 <- momentModel(y~exp(theta0+theta1*x1+theta2*x2), ~x2+z1+z2, theta0, 
+                 data=simData, vcov="MDS")
+res1 <- gmmFit(mod2)
+print(res1, model=FALSE)
+theta0 <- c(theta0=0.5, theta1=0.5, theta2=-0.5)
+res2 <- gmmFit(mod2, theta0=theta0, control=list(reltol=1e-8))
+print(res2, model=FALSE)
+@ 
+
+For the iterative GMM, we can control the tolerance level and the
+maximum number of iterations with the arguments ``itertol'' and
+``itermaxit''. The argument ``weights'' is equal to the character
+string ``optimal'', which implies that by default $W$ is set to the
+estimate of $V^{-1}$. If ``weights'' is set to ``ident'',
+\textit{gmmFit} returns the one-step GMM. Alternatively, we can
+provide \textit{gmmFit} with a fixed weighting matrix. It could be a
+matrix or a ``momentWeights'' object. When the weighting matrix is
+provided, it returns a one-step GMM based on that matrix. The
+``gmmfit'' object contains a slot ``efficientGmm'' of type logical. It
+is TRUE if the model has been estimated by efficient GMM. By default
+it is TRUE, since ``weights'' is set to ``optimal''. If ``weights''
+takes any other value or if ``type'' is set to ``onestep'', it is set
+to FALSE. There is one exception. It is set to TRUE if we provide the
+method with a weighting matrix and we set the argument
+``efficientWeights'' to TRUE. For example, the optimal weighting
+matrix of the minimum distance method does not depend on any
+coefficient. It is probably a good idea in this case to compute it
+before and pass it to the \textit{gmmFit} method. The value of the
+``efficientGmm'' slot will be used by the \textit{vcov} method to
+determine whether it should return the sandwich covariance
+matrix.
+
+There is a specific \textit{gmmFit} method for ``formulaModel''
+classes. It behaves differently only if ``weights'' is set to
+``optimal'' and the slot ``isMDE'' of the object is TRUE. The
+\textit{momentModel} constructor detects if the right-hand-side or the
+left-hand-side of each moment condition depends on the coefficient. If
+they don't, ``isMDE'' is set to TRUE. For that case, the method
+computes the efficient weighting matrix object, which does not depend
+on the coefficients, and call the general \textit{gmmFit} method
+with a fixed weights. The method is called Efficient MDE, which is a
+one-step method. If we look at the example we presented above, the
+model is
+
+<<>>=
+theta0=c(mu=1,sig=1)
+x <- rnorm(2000, 4, 5)
+dat <- data.frame(x=x, x2=x^2, x3=x^3, x4=x^4)
+gform <- list(x~mu,
+              x2~mu^2+sig, 
+              x3~mu^3+3*mu*sig,
+              x4~mu^4+6*mu^2*sig+3*sig^2)
+mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
+mod4@isMDE
+print(gmmFit(mod4), model=FALSE)
+@ 
+
+If the model is just identified, the weighting matrix is also used to
+scale the moment function and help the algorithm to find the
+solution. However, since in theory the weighting does not affect the
+solution, the method is simply called one-step GMM.
+
+<<>>=
+print(gmmFit(mod4[1:2]), model=FALSE)
+@ 
+
+\subsubsection{Methods for ``gmmfit'' classes} \label{sec:momentmodel-gmmfitm}
+
+\begin{itemize}
+  
+\item \textit{meatGmm}: It returns the meat of the sandwich covariance
+  matrix. The only other argument is ``robust''. A non robust meat
+  assumes that $W=V^{-1}$, which is true if the model has been
+  estimated by efficient GMM. Since $W$ is usually a first step
+  weighting matrix, it is not numerically identical to the estimate of
+  $V^{-1}$ based on the final estimate. However, it is a common
+  practice to ignore it. The meat will in this case be equal to
+  $(G'\hat{V}^{-1}G)$. If ``robust'' is TRUE, we do not assume that
+  $W=V^{-1}$ and the meat becomes $(G'W\hat{V}WG)$.
+  
+\item \textit{bread}: It returns the bread of the sandwich covariance
+  matrix, $(G'WG)^{-1}$, where $W$ is the weighting matrix used to get
+  the final estimate..
+  
+\item \textit{vcov}: It returns the covariance matrix of the
+  coefficient. By default, it returns a sandwich matrix if the
+  argument ``efficienGmm'' of the object is FALSE or if the model is
+  just identified, and a non sandwich estimator otherwise. Here are
+  all the possibilities:
+  \begin{itemize}
+    \item Efficient and over-identified GMM: $(G'\hat{V}^{-1}G)^{-1}/n$
+    \item Just-identified GMM: $G^{-1}\hat{V}G^{-1'}/n$  
+    \item Any other sandwich estimator: $(G'WG)^{-1}G'W\hat{V}WG(G'WG)^{-1}/n$.  
+    \item The argument ``breadonly'' is set to TRUE:
+      $(G'WG)^{-1}/n$. For efficient GMM, it is asymptotically
+      equivalent to $(G'\hat{V}^{-1}G)^{-1}/n$. It is particularly
+      useful for efficient and fixed weighting matrices.
+    \end{itemize}
+  The method is flexible enough that you may end up with a non-valid
+  covariance matrix if not careful. For example, setting ``sandwich''
+  to FALSE would lead to non valid covariance matrix if the model was
+  not estimated by efficient GMM. It is important to remember that the
+  method assumes that the specifications of the model are valid. If
+  you falsely set ``vcov'' to iid, the default fit would not be
+  efficient GMM, which implies that a sandwich matrix would be
+  required. But event if you set ``sandwich'' to TRUE, it will not
+  solve the problem because the meat will be computed assuming the
+  errors are iid. You can, however, set the argument ``modelVcov'' to
+  ``MDS'' which will set ``sandwich'' to TRUE and compute the meat
+  properly.
+  
+The argument ``df.adj'' can be set to TRUE if degrees of freedom
+adjustment is needed. In that case, the covariance matrix is
+multiplied by $n/(n-k)$. It is only included in the package to
+reproduce textbook examples. This adjustment is not really justified
+in the GMM context.
+
+\item \textit{specTest}: It tests the null hypothesis
+  $\E[g_i(\theta)]=0$ using the J-test. The statistics is
+  $n\bar{g}'\hat{V}^{-1}\bar{g}$ and it is asymptotically distributed
+  as a $\chi^2_{q-k}$ under the null. The model must have been
+  estimated by efficient GMM for this test to be valid. The method
+  returns an S4 class object.
+  
+<<>>=
+mod <- momentModel(y~x1, ~z1+z2+z3, data=simData, vcov="MDS")
+res <- gmmFit(mod)
+specTest(res)
+@ 
+
+It is also possible to test subsets of instruments. Suppose we suspect
+$z_2$ to be invalid. We would estimate the model without $z_2$ and
+compute the difference between the J-tests $(J_1-J_2)$, where $J_1$ is
+the J-test with $z_2$ and $J_2$ is the test without. The distribution
+is the number of instruments that we want to test, which is one in
+this example. To test it using the \textit{specTest} method, we
+specify which instrument we want to test ($z_2$ is the third
+instrument if we include the intercept):
+
+<<>>=
+specTest(res, 3)
+@ 
+
+\item \textit{summary}: It computes important information about the
+  estimated model. It is an S4 class object with a \textit{print}
+  method that shows the results in the usual way.
+  
+<<>>=
+summary(res)
+@   
+  
+The argument ``...'' can be used to pass options to the \textit{vcov}
+method. For example, we can used the bread only to compute the
+standard errors:
+
+<<>>=
+summary(res, breadOnly=TRUE)@coef
+@ 
+
+\item \textit{hypothesisTest}: Method to perform hypothesis tests on
+  the coefficients. Consider the following unrestricted model:
+
+<<>>=
+mod <- momentModel(y~x1+x2+x3+z1, ~x1+x2+z1+z2+z3+z4, data=simData, vcov="iid")
+res <- gmmFit(mod)
+@ 
+
+We want to test the hypothesis 
+
+<<>>=
+R <- c("x1=1", "x2=x3", "z1=-0.7")
+rmod <- restModel(mod, R)
+printRestrict(rmod)
+@ 
+
+There are three ways to do it. The Wald test only requires us to
+estimate the unrestricted model. It is performed as follows:
+
+<<>>=
+hypothesisTest(object.u=res, R=R)
+@ 
+
+The statistics is
+$(R\hat{\theta}-q)'[R\hat{\Omega}R']^{-1}(R\hat{\theta}-q)$, where
+$\hat{\Omega}$ is the covariance matrix of $\hat{\theta}$, and is
+distributed as a chi-square with degrees of freedom equal to the
+number of restrictions. Here $R$ and $q$ are given in the restricted
+model:
+<<>>=
+rmod@cstLHS
+rmod@cstRHS
+@ 
+
+We can also test it using the LM test, which test if the score of the
+GMM objective is close enough to zero when evaluated at the restricted
+coefficient estimates. The statistics is
+\[
+n\bar{g}(\tilde{\theta})'\hat{V}^{-1}\tilde{G}\hat{\Omega}\tilde{G}'\hat{V}^{-1} \bar{g}(\tilde{\theta}),
+\]
+where the tilde implies that it is evaluated at the restricted
+coefficient estimates. The asymptotic distribution is the same as the
+Wald test. To perform the test, we need to estimate the restricted
+model.
+
+<<>>=
+res.r <- gmmFit(rmod)
+@ 
+
+Then, we perform the test
+
+<<>>=
+hypothesisTest(object.r=res.r)
+@ 
+
+The LR test, compares the values of the GMM objective function at the
+restricted and unrestriced coefficient estimates. It is in fact the
+restricted minus the unrestricted one. The distribution is also the
+same in large samples. We therefore need both the restricted and
+unrestricted model:
+
+<<>>=
+hypothesisTest(object.r=res.r, object.u=res)
+@ 
+
+Alternatively, we can give both model and specify the test.
+
+<<eval=FALSE>>=
+hypothesisTest(object.r=res.r, object.u=res, type="LM")
+hypothesisTest(object.r=res.r, object.u=res, type="Wald")
+hypothesisTest(object.r=res.r, object.u=res, type="LR")
+@ 
+
+\item \textit{coef}: Returns the coefficient estimate.
+  
+<<>>=
+coef(res.r)
+@   
+  
+\item \textit{residuals}: Returns the residuals. Only for
+  ``linearModel'' and ``nonlinearModel''.
+  
+<<>>=
+e <- residuals(res)
+e.r <- residuals(res.r)
+@     
+
+\item \textit{DWH}: It performs the Durbin-Wu-Hausman test. In
+  general, the purpose of the test is to compare an efficient
+  estimator, $\hat{\theta}$, with an inefficient one,
+  $\tilde{\theta}$. Under the null hypothesis, both are consistent
+  estimators of $\theta$ and under the alternative only
+  $\tilde{\theta}$ is consistent. It is well known in the linear GMM
+  setup as a way of comparing OLS with GMM. We want to test if it is
+  worth instrumenting the suspected endogenous vaiables among th
+  regressors. The method with signature $\{gmmfit, lm\}$ performs such
+  test.
+  
+<<>>=
+mod <- momentModel(y~x1, ~z1+z2, data=simData, vcov="iid")
+res1 <- gmmFit(mod)
+res2 <- lm(y~x1, simData)
+DWH(res1,res2)
+@   
+  
+Used this way, the test is defined as
+$(\theta_{ols}-\theta_{gmm})'\Sigma (\theta_{ols}-\theta_{gmm})$,
+where $\Sigma$ is the generalized inverse of
+$[\widehat{\Var(\theta_{gmm})}-\widehat{\Var(\theta_{ols})}]$. The
+degrees of freedom is the rank of difference between the two
+covariance matrices. The argument ``tol'' is the tolerance level for
+the Moore-Penrose generalized inverse (for singular values less than
+``tol'', their inverse is set to zero). The degrees of freedom should
+be 1 here because there is only one endogenous variable. That approach
+is therefore not too stable. Below, we consider a regression
+approach. The method with signature $\{gmmfit, gmmfit\}$ is used to
+compare two GMM estimators applied on the same regression model, using
+the same approach.
+
+For the signature $\{gmmfit, missing\}$, the test is done using an
+auxiliary regression. The fitted endogenous regressors are added to
+the regression model and a joint significance test on their
+coefficients is performed. For the example we have here, we would
+regress $x_1$ on $z_1$ and $z_2$ with an intercept, regress $y$ on
+$x_1$ and the fitted value $\hat{x}_1$ and test the coefficient of
+$\hat{x}_1$. Using \textit{DWH} we obtain:
+
+<<>>=
+DWH(res1)
+@ 
+
+Notice that the Wald test is robust in the sense that the covariance
+matrix is based on the specification of the ``momentModel''. For
+example, if ``vcov'' was set to ``MDS'', an HCCM covariance matrix
+would be used.
+
+\item \textit{confint} The method contruct confidence intervals for
+  the coefficients.
+
+<<>>=
+confint(res1, level=0.99)
+@   
+  
+For confidence region, we have to select two coefficients and add the
+option ``area=TRUE''
+
+<<>>=
+mod <- momentModel(y~x1+x2+z1, ~x1+z1+z2+z3, data=simData, vcov="iid")
+res2 <- gmmFit(mod)
+ci <- confint(res2, 2:3, area=TRUE)
+ci
+@ 
+
+It creates an object of class ``mconfint'', and its \textit{plot}
+produces the confidence region:
+
+\begin{center}
+\begin{minipage}{.75\textwidth}
+<<fig.height=5>>=
+plot(ci, col="lightblue", density=20, Pcol=2, bg=2)
+@   
+  \end{minipage}
+\end{center}
+
+\item \textit{update} The method is used to re-fit a model with
+  different specifications. It is also possible to modify the
+  model. Here is a few examples:
+
+<<>>=
+res <- gmmFit(mod1)
+res
+update(res, vcov="MDS") ## changing only the model
+update(res, vcov="MDS", type="iter")
+@   
+  
+\end{itemize}
+
+
+\subsubsection{The \textit{tsls} method} \label{sec:momentmodel-tsls}
+
+This method is to estimate linear models with two-stage least
+squares. It returns a ``tsls'' class object which inherits from
+``gmmfit''. Most ``gmmfit'' methods are the same with the eception of
+\textit{bread}, \textit{meatGmm} and \textit{vcov}. They just use the
+structure of 2LSL to make them more computationally efficient. They
+may be removed in future version and included in the main ``gmmfit''
+methods.
+
+If the model has iid error, \textit{gmmFit} and \textit{tsls} are
+numerically identical. In fact, the function is called by
+\textit{gmmFit} in that case. The main reason for using it is if we
+have a more complex variance structure but want to avoid using a fully
+efficient GMM, which may have worse small sample
+properties. Therefore, ``sandwich'' is set to TRUE in the
+\textit{vcov} method for ``tsls'' objects. In the following example,
+errors are assumed heteroscedastic, and the model is estimated by
+2SLS. The \textit{summary} method returns, however, robust standard
+errors because ``sandwich=TRUE'' is the default in the \textit{vcov}
+method of ``tsls''.
+
+<<>>=
+mod <- momentModel(y~x1, ~z1+z2+z3, data=simData, vcov="MDS")
+res <- tsls(mod)
+summary(res)@coef
+@ 
+
+\subsubsection{\textit{gmm4}: A function to fit them all} \label{sec:momentmodel-gmm4}
+
+If you still think that the \textit{gmmFit} method is not simple
+enough because you have to create a model first, the \textit{gmm4}
+function will do everything for you. It is the function that looks the
+most like its ancestor function \textit{gmm} from the gmm package. It
+is still required to specify the structure of variance for the moment
+conditions. In fact, it combines all arguments of the
+\textit{momentModel} constructor and \textit{gmmFit} method. Here are a
+few examples.
+
+You want to estimate 
+\[
+y = \theta_0 + \theta_1 x_1 + \theta_2 x_2 + \epsilon
+\]
+using the instruments $\{x_2, z_1, z_2, z_3\}$. We do not want to
+assume homoscedasticity, so we want to set ``vcov'' to ``MDS''. We
+want to estimate the model by two-step GMM.
+
+<<>>=
+res1 <- gmm4(y~x1+x2, ~x2+z1+z2+z3, type="twostep", vcov="MDS", data=simData)
+res1
+@ 
+
+We want to compare it with iterative GMM:
+
+<<>>=
+res2 <- gmm4(y~x1+x2, ~x2+z1+z2+z3, type="iter", vcov="MDS", data=simData)
+@ 
+
+Now, we want to estimate the model with the restrictions
+$\theta_1=\theta_2$
+
+<<>>=
+res1.r <- gmm4(y~x1+x2, ~x2+z1+z2+z3, type="twostep", vcov="MDS", 
+               data=simData, cstLHS="x1=x2")
+res1.r
+@ 
+
+Since the function returns a ``gmmfit'' object, all methods work with the output. We for example test the restriction:
+
+<<>>=
+hypothesisTest(res1, res1.r, type="LR")
+@ 
+
+There is also a \textit{tsls} method for ``formula'', which works the same way:
+
+<<>>=
+res3 <- tsls(y~x1+x2, ~x2+z1+z2+z3, vcov="MDS", data=simData)
+res3
+@ 
+
+It is still important to specify the variance structure in order to
+obtain the appropriate coefficient standard errors. To estimate a
+nonlinear model, \textit{gmm4} will recognize it by the way the
+formula is set along with the named vector ``theta0''.
+
+<<>>=
+res3 <- gmm4(y~theta0+exp(theta1*x1+theta2*x2), ~x2+z1+z2+z3+z4, vcov="iid",
+             theta0=c(theta0=1, theta1=0, theta2=0), data=simData)
+res3
+@ 
+
+The \textit{update} method, when the model is fitted using gmm4() or
+\textit{tsls}, allows any of the arguments to be modified. In fact, it
+simply calls the \textit{update} method of the ``stats'' package. For
+example, we can change the dataset:
+
+<<>>=
+update(res3, data=simData[1:45,])
+@ 
+
+To change the instruments, or impose a retriction on the coefficient,
+it is as simple as:
+
+<<>>=
+update(res3, x = ~x2+z1+z2+z3, cstLHS="theta1=theta2")
+@ 
+
+\subsection{Textbooks Applications} \label{sec:momentmodel-app}
+
+In this section, we cover a few examples from major textbooks. Since
+it is meant to help users who care less about the structure of the
+package, we use, when possible, the quicker functions that we just
+intruduced in the last section.
+
+\subsubsection{Stock-Watson} \label{sec:momentmodel-appsw}
+In this section, we cover examples from \cite{stock-watson15}. In
+Chapter 12, the demand for cigarettes is estimated for 1985 using a
+panel. The following data change is required
+
+<<>>=
+data(CigarettesSW)
+CigarettesSW$rprice <- with(CigarettesSW, price/cpi)
+CigarettesSW$rincome <- with(CigarettesSW, income/population/cpi)
+CigarettesSW$tdiff <- with(CigarettesSW, (taxs - tax)/cpi)
+c1985 <- subset(CigarettesSW, year == "1985")
+c1995 <- subset(CigarettesSW, year == "1995")
+@ 
+
+In equation 12.15, the demand is estimated using sales tax as an
+instrument for price. In order to get the same standard errors, we
+need to assume ``MDS'', and use a sandwich matrix with degrees of
+freedom adjustment.
+
+<<>>=
+res1 <- gmm4(log(packs)~log(rprice)+log(rincome),
+             ~log(rincome)+tdiff, data = c1995, vcov="MDS")
+summary(res1, sandwich=TRUE, df.adj=TRUE)@coef
+@ 
+
+Equation 12.16, for which both cigarettes and sales taxes are used as
+instruments, can be reproduced using the same specifications. We also
+have to set ``centeredVcov'' to FALSE. We have not seen that argument
+yet. When set to TRUE, the moments are centered before computing the
+weights. For more details on when it should be centered, see
+\cite{hall05}.
+
+<<>>=
+res2<- tsls(log(packs)~log(rprice)+log(rincome),
+            ~log(rincome)+tdiff+I(tax/cpi), data = c1995,
+            centeredVcov=FALSE, vcov="MDS")
+summary(res2, sandwich=TRUE, df.adj=TRUE)@coef
+@ 
+
+In Table 12.1, the long-run demand elasticity is estimated over a 10
+year period. They compare a model with only sales tax as instrument, a
+model with cigarettes tax only and one with both.
+
+<<extract, echo=FALSE, message=FALSE, warning=FALSE>>=
+library(texreg)
+setMethod("extract", "gmmfit", 
+          function(model, includeJTest=TRUE, includeFTest=TRUE, ...)
+              {
+                  s <- summary(model, ...)
+                  spec <- modelDims(model@model)
+                  coefs <- s@coef
+                  names <- rownames(coefs)
+                  coef <- coefs[, 1]
+                  se <- coefs[, 2]
+                  pval <- coefs[, 4]
+                  n <- model@model@n
+                  gof <- numeric()
+                  gof.names <- character()
+                  gof.decimal <- logical()
+                  if (includeJTest) {
+                      if (spec$k == spec$q)
+                          {
+                              obj.fcn <- NA
+                              obj.pv <- NA
+                          } else {
+                              obj.fcn <- s@specTest@test[1]
+                              obj.pv <- s@specTest@test[3]
+                          }
+                      gof <- c(gof, obj.fcn, obj.pv)
+                      gof.names <- c(gof.names, "J-test Statistics", "J-test p-value")
+                      gof.decimal <- c(gof.decimal, TRUE, TRUE)
+                  }
+                  if (includeFTest) {
+                      str <- s@strength$strength
+                      if (is.null(str))
+                          {
+                              gof <- c(gof, NA)
+                              gof.names <- c(gof.names, "First Stage F-stats")
+                              gof.decimal <- c(gof.decimal, TRUE)
+                          } else {
+                              for (i in 1:nrow(str))
+                                  {
+                                      gof <- c(gof, str[i,1])
+                                      gofn <- paste("First Stage F-stats(",
+                                                    rownames(str)[i], ")", sep="")
+                                      gof.names <- c(gof.names, gofn)
+                                      gof.decimal <- c(gof.decimal, TRUE)
+                                  }
+                          }
+                  }
+                  tr <- createTexreg(coef.names = names, coef = coef, se = se, 
+                                     pvalues = pval, gof.names = gof.names, gof = gof, 
+                                     gof.decimal = gof.decimal)
+                  return(tr)
+              })
+@ 
+
+<<>>=
+data <- data.frame(dQ=log(c1995$pack/c1985$pack),
+                   dP=log(c1995$rprice/c1985$rprice),
+                   dTs=c1995$tdiff-c1985$tdiff,
+                   dT=c1995$tax/c1995$cpi-c1985$tax/c1985$cpi,
+                   dInc=log(c1995$rincome/c1985$rincome))
+res1 <- tsls(dQ~dP+dInc, ~dInc+dTs, vcov="MDS", data=data)
+res2 <- tsls(dQ~dP+dInc, ~dInc+dT, vcov="MDS", data=data)
+res3 <- tsls(dQ~dP+dInc, ~dInc+dTs+dT, vcov="MDS", data=data)
+@ 
+
+You can print the summary to see the result, but I use the texreg
+package of \cite{leifeld13},with an home made \textit{extact} method
+(see Appendix), to make it more compact and more like Table 12.1 of
+the textbook. Table \ref{tab1} presents the results. There is a small
+difference in the first stage F-test, which could be explained by the
+way they compute the covariance matrix. We cannot figure out our to
+get the same first two digits. Using \textit{lm} manually and ``HC1''
+type of HCCM, the test is identical to what we get here and it is the
+closest we can get from their results. It is the same for the other
+two F-tests.
+
+For the J-test, the difference is a little larger. But, we have to
+notice that if we assume ``MDS'', 2SLS is not efficient and the J-test
+is not valid. If we estimate the model by efficient GMM, the J-test
+gets closer to what the authors get.
+
+<<>>=
+res4 <- gmm4(dQ~dP+dInc, ~dInc+dTs+dT, vcov="MDS", data=data)
+specTest(res4)
+@ 
+
+<<echo=FALSE, results='asis'>>=
+texreg(list(res1,res2,res3), fontsize="footnotesize", label="tab1", 
+       caption="Table 12.1 of Stock and Watson textbook", df.adj=TRUE, sandwich=TRUE)
+@ 
+
+<<>>=
+res4 <- gmm4(dQ~dP+dInc, ~dInc+dTs+dT, vcov="MDS", data=data)
+@ 
+
+\subsubsection{Greene} \label{sec:momentmodel-appg}
+
+In this section, we want to reproduce results from \cite{greene12}. 
+
+In Example 13.7, the author estimates a nonlinear model with (1) the
+method of moments, one-step GMM and efficient GMM. To reproduce the
+results, we first need to create a dataset for 1988 remove zero income
+observations, and scale income.
+
+<<>>=
+data(HealthRWM)
+dat88 <- subset(HealthRWM, year==1988 & hhninc>0)
+dat88$hhninc <- dat88$hhninc/10000
+@ 
+
+The model is
+
+\[
+hhninc = \exp[b_0 + b_1 age +b_2 educ + b_3 female] + \epsilon
+\]
+
+We want to reproduce Table 13.2. The NLS estimates shows that we have
+the same data used by the author.
+
+<<>>=
+thet0 <- c(b0=log(mean(dat88$hhninc)),b1=0,b2=0,b3=0)
+g <- hhninc~exp(b0+b1*age+b2*educ+b3*female)
+res0 <- nls(g, dat88, start=thet0, control=list(maxiter=100))
+summary(res0)$coef
+@ 
+
+The second column is the method of moment (or just identified GMM),
+using the regressors as instruments.
+
+<<>>=
+h1 <- ~age+educ+female
+model1 <- momentModel(g, h1, thet0, vcov="MDS", data=dat88)
+res1 <- gmmFit(model1, control=list(reltol=1e-10, abstol=1e-10))
+@ 
+
+The third column is first step GMM using the instruments $\{age, educ,
+female, hstat, married\}$.
+
+<<>>=
+h2 <- ~age+educ+female+hsat+married
+model2 <- momentModel(g, h2, thet0, vcov="MDS", data=dat88)
+res2 <- gmmFit(model2, type="onestep")
+@
+
+The third is efficient GMM using the same instruments. 
+
+<<>>=
+res3 <- gmmFit(model2)
+@ 
+
+The results (column 2 to 4 of Table 13.2) are presented in Table
+\ref{greene1}. The results are not identical, which is expected since
+results from nonlinear models depends on how the optimizer used is
+tuned. Only the last column cannot be explained by rounding errors or
+optimizer tuning. We have tried different tuning parameters in
+\textit{optim} and it never gets closer. Even if we start with the
+author's solution, \textit{optim} finds a solution with smaller value
+of the objective function.
+
+<<echo=FALSE, results='asis'>>=
+texreg(list(res1, res2, res3), caption="Attempt to reproduce Table 13.2 from Greene (2012)",
+       label="greene1", fontsize='footnotesize', digits=5,
+       includeJTest=FALSE, includeFTest=FALSE)
+@ 
+
+In the Example 8.7, the author computes the Hausman test for a
+consumption function. The efficient estimator is the OLS estimator and
+the inefficient but consistent is 2SLS with lag income and consumption
+as instruments. We first estimate the models:
+
+<<>>=
+data(ConsumptionG)
+Y <- ConsumptionG$REALDPI
+C <- ConsumptionG$REALCONS
+n <- nrow(ConsumptionG)
+Y1 <- Y[-n]; Y <- Y[-1]
+C1 <- C[-n]; C <- C[-1]
+dat <- data.frame(Y=Y,Y1=Y1,C=C,C1=C1)
+model <- momentModel(C~Y, ~Y1+C1, data=dat, vcov="iid")
+@ 
+
+We then estimate them with OLS and 2SLS.
+
+<<>>=
+res1 <- tsls(model)
+res2 <- lm(C~Y)
+@ 
+
+Result of the test from Example 8.7-2:
+
+<<>>=
+DWH(res1)
+@ 
+
+The difference is explained by rounding errors. We get the same as the
+author if we square the t ratio using only three digits. For example
+8.7-1, we first try to adjust the covariance for the degrees of
+freedom.
+
+<<>>=
+DWH(res1, res2, df.adj=TRUE)
+@ 
+
+The result is a little different (the author reports 8.481). To
+reproduce the same results we need to specify the variance.
+
+<<>>=
+X <- model.matrix(model)
+Xhat <- qr.fitted(res1@wObj@w, X)
+s2 <- sum(residuals(res2)^2)/(res2$df.residual)
+v1 <-  solve(crossprod(Xhat))*s2
+v2 <- solve(crossprod(X))*s2
+DWH(res1, res2, v1=v1, v2=v2)
+@
+
+What we do above is to assume that the variance of the 2SLS and OLS
+coefficients are respectively $\hat{\sigma}^2(\hat{X}'\hat{X})^{-1}$
+and $\hat{\sigma}^2(X'X)^{-1}$, where $\hat{X}$ is the fitted values
+of the regression of $X$ on the instruments and $\hat{\sigma}^2$ is
+the estimated variance of the error terms using the unbiased OLS
+estimator. We therefore need the same estimate to obtain the same
+results.
+
+\subsubsection{Wooldridge} \label{sec:momentmodel-appw}
+
+In this section, we want to reproduce results from \cite{wooldridge16}. 
+
+\section{Systems of Equations} \label{system}
+
+We consider two type of system of equations. The linear system:
+\[
+Y_{ji} = X_{ji}'\theta_j + \epsilon_{ji}
+\]
+or
+\[
+Y_{ji}(\theta_j) = X_{ji}(\theta_j) + \epsilon_{ji}
+\]
+for $j=1,...,m$, the number of equations, and $i=1,...,n$, the number
+of observations, with $\theta_j$ being a $k_j\times 1$ vector. We
+assume that for each equation $j$, there is a $q_j\times 1$ vector of
+instruments $Z_{ji}$ that satisfies $\E[\epsilon_{ji}Z_{ji}]=0$.  The
+moment conditions can therefore be written as:
+\[
+E[g_i(\theta)] \equiv E\begin{bmatrix}
+\epsilon_{1i}Z_{1i}\\
+\epsilon_{2i}Z_{2i}\\
+\epsilon_{3i}Z_{3i}\\
+\vdots\\
+\epsilon_{mi}Z_{mi}\\
+\end{bmatrix}=0
+\]
+The model is just-identified if $k_j=q_j$ for all $j$, and it is
+over-identified if $k_j<q_j$ for ar least one $j$. For now, we offer
+two possible variance structures. We refer to ``iid'' models in which
+the errors are conditionally homoscedastic. In that case, the
+asymptotic variance of the moment condition is: 1\[
+Var[\sqrt(n)\bar{g}(\theta)] \conP S \equiv \begin{pmatrix}
+  \sigma_{1}^2E[Z_{1i}Z_{1i}'] & \sigma_{12}E[Z_{1i}Z_{2i}'] &\cdots&
+  \sigma_{1m}E[Z_{1i}Z_{mi}']\\ \sigma_{21}E[Z_{2i}Z_{1i}'] &
+  \sigma_{2}^2E[Z_{2i}Z_{2i}'] &\cdots&
+  \sigma_{2m}E[Z_{2i}Z_{mi}']\\ \vdots & \vdots & \vdots & \vdots
+  \\ \sigma_{m1}E[Z_{mi}Z_{1i}'] & \sigma_{m2}E[Z_{mi}Z_{2i}']
+  &\cdots& \sigma_{m}^2E[Z_{mi}Z_{mi}']\\
+\end{pmatrix}
+\]
+We can estimate $E[Z_{li}Z_{ji}']$ by $\frac{1}{n}\sum_{i=1}^n
+Z_{li}Z_{ji}'$ and $\sigma_{lj}$ by $\frac{1}{n}\sum_{i=1}^n
+\hat{\epsilon}_{li}\hat{\epsilon}_{ji}$. We label this estimate
+$\hat{S}$.  If $Z_{li}=Z_{ji}$ for all $l$ and $j$, which implies that
+all equations have the same instruments, we can simplify the
+expression. Let $\Sigma=\E[\epsilon_i\epsilon_i']$, where
+$\epsilon_i=\{\epsilon_{1i}, ..., \epsilon_{mi}\}'$ and $Z_i=Z_{ji}$
+for all $j=1,...,m$. The asymptotic variance can be written as:
+\[
+Var[\sqrt(n)\bar{g}(\theta)] \conP S \equiv  \Sigma \otimes E[Z_iZ_i'],
+\]
+where $\otimes$ is the kronecker product. $S$ can be estimated by
+$\hat{S}=\hat{\Sigma}\otimes\left[\frac{1}{n}\sum_{i=1}^n
+  Z_iZ_i'\right]$, where $\hat{\Sigma}=\frac{1}{n}\sum_{i=1}^n
+\hat{\epsilon}_i\hat{\epsilon}_i'$. If we relax the homoscedasticity,
+the variance structure is labeled ``MDS''. In that case, the
+asymptotic variance of the moments are:
+\[
+Var[\sqrt(n)\bar{g}(\theta)] \conP S \equiv  \begin{pmatrix} 
+  E[\epsilon_{1i}^2Z_{1i}Z_{1i}'] & E[\epsilon_{1i}\epsilon_{2i}Z_{1i}Z_{2i}'] &\cdots& E[\epsilon_{1i}\epsilon_{mi}Z_{1i}Z_{mi}']\\
+  E[\epsilon_{2i}\epsilon_{1i}Z_{2i}Z_{1i}'] & E[\epsilon_{2i}^2Z_{2i}Z_{2i}'] &\cdots& E[\epsilon_{2i}\epsilon_{mi}Z_{2i}Z_{mi}']\\
+      \vdots & \vdots & \vdots & \vdots \\
+ E[\epsilon_{mi}\epsilon_{1i}Z_{mi}Z_{1i}'] & E[\epsilon_{mi}\epsilon_{2i}Z_{mi}Z_{2i}'] &\cdots& E[\epsilon_{mi}^2Z_{mi}Z_{mi}']\\  
+\end{pmatrix}
+\]
+It can be estimated by 
+\[
+\hat{S} = \frac{1}{n}\sum_{i=1}^n\begin{pmatrix} 
+  \hat{\epsilon}_{1i}^2Z_{1i}Z_{1i}' & \hat{\epsilon}_{1i}\hat{\epsilon}_{2i}Z_{1i}Z_{2i}' &\cdots& \hat{\epsilon}_{1i}\hat{\epsilon}_{mi}Z_{1i}Z_{mi}'\\
+  \hat{\epsilon}_{2i}\hat{\epsilon}_{1i}Z_{2i}Z_{1i}' & \hat{\epsilon}_{2i}^2Z_{2i}Z_{2i}' &\cdots& \hat{\epsilon}_{2i}\hat{\epsilon}_{mi}Z_{2i}Z_{mi}'\\
+      \vdots & \vdots & \vdots & \vdots \\
+ \hat{\epsilon}_{mi}\hat{\epsilon}_{1i}Z_{mi}Z_{1i}' & \hat{\epsilon}_{mi}\hat{\epsilon}_{2i}Z_{mi}Z_{2i}' &\cdots& \hat{\epsilon}_{mi}^2Z_{mi}Z_{mi}'\\  
+\end{pmatrix}
+\]
+Another type of systems considered in the package are the ones in
+which each equation has the same instruments and that these
+instruments are the union of all regressors from all equations. This
+is called the SUR assumption (Seemingly Unrelated Regressions). We
+will compare the estimation of the different models below. Notice that
+there is no function type of system yet because we don't see any
+specific applications. Suggestions are welcome if you have examples in
+mind.
+
+\subsection{A class object for System of Equations} \label{sec:smomentmodel}
+
+The two classes are ``slinearModel'' and ``snonlinearModel'' and the union
+class is ``smomentModel''. For most, the slots are the same with the
+exception that they are lists. The other difference is that the whole
+data.frame for all equations is store in the slot ``data''. For
+``slinearModel'', the equations and instruments are defined in the slots
+``modelT'' and ``instT'', the latter being also the format for
+``snonlinearModel'' classes. They are lists of terms for each
+formula. There are two extra slots in system classes, ``eqnNames'',
+which labels each equation, and ``SUR'', which is TRUE if the SUR
+assumption is satisfied.The constructor is \textit{sysMomentModel} and
+works as the \textit{momentModel} constructor. A \textit{show} method
+prints the most important specification of the system of
+equations. Here is an example.
+
+<<>>=
+data(simData)
+g <- list(Supply=y1~x1+z2, Demand1=y2~x1+x2+x3, Demand2=y3~x3+x4+z1)
+h <- list(~z1+z2+z3, ~x3+z1+z2+z3+z4, ~x3+x4+z1+z2+z3)
+smod1 <- sysMomentModel(g, h, vcov="iid", data=simData)
+smod1
+@ 
+
+If we do not name the equations as we did, the default names $Eqnj$
+for $j=1,...,m$ will be given. As for single equations, the ``vcov''
+argument defines the assumption we make on the structure of the moment
+conditions variance. ``snonlinearModel'' are constructed the same way
+with the exception that ``theta0'', a list of named starting
+coefficient vectors, must be provided. If we only provide one formula
+for the instruments, the same instruments will be used in all
+equations.
+
+<<>>=
+smod2 <- sysMomentModel(g, ~x2+x4+z1+z2+z3+z4, vcov="iid", data=simData)
+smod2
+@ 
+
+To impose the SUR assumption, we just ignore the instrument
+argument. In that case, instruments will be constructed using the
+union of all regressors.
+
+<<>>=
+smod3 <- sysMomentModel(g, vcov="iid", data=simData)
+smod3
+@ 
+
+There is one other way to create a system classes. If one tries to
+create a ``linearModel'' class using a matrix as the left hand side of
+the regression, the model will automatically converted to a system of
+equation with the same regressors and same instruments. Here is an
+example using simulated data.
+
+<<>>=
+dat <- list(y=matrix(rnorm(150),50,3),
+            x=rnorm(50), z1=rnorm(50),
+            z2=rnorm(50))
+mod <- momentModel(y~x, ~z1+z2, data=dat, vcov="iid")
+mod
+@ 
+
+We could therefore create a multivariate regression in the following way:
+
+<<>>=
+mod <- momentModel(y~x, ~x, vcov="iid", data=dat)
+@ 
+
+\subsection{Methods for ``smomentModel'' classes}\label{sec:smomentmodel-methods}
+
+The methods are very similar to the ones described above for
+``momentModel'' classes. Here, we briefly describe the difference.
+
+\begin{itemize}
+\item \textit{[}: The method has two arguments. The first is an vector
+  of integers to select the equations, and the second is a list of
+  integers to select the instruments in each of the selected
+  equation. For example, the following creates a system of equations
+  from the ``smod1'' object with the first two equations, and using
+  the first 3 instruments in the first equation and the first 4 for
+  the second.
+  
+<<>>=
+smod1[1:2, list(1:3,1:4)]
+@ 
+
+If the second argument is missing, all instruments are selected. If
+only one equation is selected, the object if converted to a single
+equation class. We can therefore estimate each equation separately.
+
+<<>>=
+gmmFit(smod1[1])
+@ 
+
+\item \textit{model.matrix} and \textit{modelResponse}. The methods
+  return the model.matrix and modelResponse of each equation in a
+  list. Basically, the following are equivalent:
+
+<<>>=
+mm <- model.matrix(smod1)
+mm <- lapply(1:3, function(i) model.matrix(smod1[i]))
+@   
+
+\item \textit{evalMoment}, \textit{evalDMoment}, \textit{Dresiduals}:
+  The methods are applied to each equation and returned in a
+  list. Notice that $theta$ must be stored in a list.
+  
+<<>>=
+theta <- list(1:3, 1:4, 1:4)
+gt <- evalMoment(smod1, theta)
+@ 
+
+\item \textit{residuals}: It returns a $n\times m$ matrix of
+  residuals. We can therefore estimate $\Sigma$ directly:
+
+<<>>=
+Sigma <- crossprod(residuals(smod1, theta))/smod1@n
+@   
+
+\item \textit{vcov}: It returns the $Q\times Q$ matrix
+  $\hat{S}$, where $Q=\sum_{j=1}^m q_j$. The way it is computed
+  depends on the structure of the variance as described above.
+
+\item \textit{merge}: The method is used to merge single equations
+  into a system class, or to add equations to an already created
+  system class. The ``smod1'' object could have been created this way.
+  
+<<>>=
+eq1 <- momentModel(g[[1]], h[[1]], data=simData, vcov="iid")
+eq2 <- momentModel(g[[2]], h[[2]], data=simData, vcov="iid")
+eq3 <- momentModel(g[[3]], h[[3]], data=simData, vcov="iid")
+smod <- merge(eq1,eq2,eq3)
+smod
+@ 
+
+We can also add an equation to ``smod1''.
+
+<<>>=
+eq1 <- momentModel(y~x1, ~x1+z4, data=simData, vcov="iid")
+merge(smod1, eq1)
+@ 
+
+Notice that the equations are merged to the first argument. It the
+``vcov'' differes, the one from the first argument is kept.
+
+\end{itemize}
+
+\subsection{Restricted models}\label{sec:smomentmodel-rest}
+
+As for the single equation case, we can create an object with
+restrictions imposed on the coefficients. For now, only linear
+restrictions on linear models are implemented in the package. The
+class is ``rslinearModel'' and it contains its unrestricted
+counterpart. Restrictions are imposed in the same way they are imposed
+in the single equation case. We can impose cross-equation
+restrictions, or simply impose restrictions equation by equation. The
+method \textit{restModel} is used to create the restricted models. In
+the following example, restrictions are imposed equation by equation.
+
+<<>>=
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+rsmod1 <- restModel(smod1, R1)
+rsmod1
+@
+
+For now, $R$ is a list of the same length as the number of
+equations. For equations with no restrictions, an empty character
+vector must be provided. (Eventually, we will allow $R$ to be a named
+list with the names being the equation names.) For cross-equation
+restrictions, we need to add to the coefficient names the equation
+names.
+
+<<>>=
+R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
+rsmod1.ce <- restModel(smod1, R2)
+rsmod1.ce
+@ 
+
+Notice that the model contains only one equation in the print
+output. That's because we can no longer consider equations to be
+distinct. All methods that exist for ``sGmmModels'' can also be
+applied to ``rslinearModel'' objects. When a vector of coefficient is
+required, the dimension of $theta$ must reflect the new number of
+coefficients implied by the restrictions. For example, in ``rsmod1''
+there are only two coefficients in the restricted supply and demand2
+equations.
+
+<<>>=
+e <- residuals(rsmod1, theta=list(1:2, 1:4, 1:2))
+dim(e)
+@ 
+
+Notice that in order to compute the residuals in restricted models,
+the method converts the restricted coefficients in their unrestricted
+format and calls the \textit{residuals} method for the unrestricted
+model. The method \textit{coef} is used to do the conversion.  We
+could therefore reproduce what the method for ``rslinearGMM'' computes
+as follows:
+
+<<>>=
+(b <- coef(rsmod1, theta=list(1:2, 1:4, 1:2)))
+e <- residuals(as(rsmod1, "slinearModel"), b)
+@ 
+
+The same is done for all methods that can be computed using the
+converted coefficient vector. These methods include
+\textit{evalMoment} and \textit{vcov}. All derivatives methods,
+however, reflect the change in the models. For example,
+\textit{evalDMoment} will produce lists of matrices with different
+dimensions:
+
+<<>>=
+evalDMoment(rsmod1, theta=list(1:2,1:4,1:2))[[1]]
+@ 
+
+The method \textit{Dresiduals} will also be affected the same way. Of
+course, the methods \textit{model.matrix} and \textit{modelResponse}
+are also affected by the restrictions because the latter modify the
+left and/or the right hand sides of the equations.
+
+When cross-equation restrictions are imposed, we treat the object as
+being a system with one equation by providing a list with one single
+coefficient vector. However, the output of the methods will be the one
+implied by the system of equations by converting the retricted
+coefficient vector into its unrestricted counterpart. It is the case
+of \textit{residuals} and \textit{vcov}. For example, the
+residuals:
+
+<<>>=
+e <- residuals(rsmod1.ce, theta=list(1:9))
+e[1:3,]
+@ 
+
+is an $n\times m$ matrix, one column for each equation. As to the case
+with no cross-equation restriction, the residuals can be computed this
+way:
+
+<<>>=
+(b <- coef(rsmod1.ce, theta = list(1:9)))
+e <- residuals(as(rsmod1.ce, "slinearModel"), b)
+@ 
+
+The methods \textit{evalDMoment}, \textit{Dresiduals},
+\textit{model.matrix} and \textit{modelResponse} outputs are, however,
+lists with ony one element, the combined equations.
+
+<<>>=
+G <- evalDMoment(rsmod1.ce, list(1:9))
+names(G)
+dim(G[[1]])
+@ 
+
+The \textit{"["} method works the same way. We can therefore get the
+  first equation as a ``rlinearModel'' object as follows:
+  
+<<>>=
+rsmod1[1]
+@ 
+
+\subsection{Genelarized method of moments}\label{sec:sysgmm}
+
+\subsubsection{A class for GMM weights}\label{sec:smomentmodel-weights}
+
+As for the single equation case, the weighting matrices must have a
+particular class in order to work with all model fitting methods. The
+constructor is the method \textit{evalWeights}. The class for system
+of equations is ``sysMomentWeights''.  The simplest weighting matrix is
+the identity matrix and can be created as follows:
+
+<<>>=
+wObj1 <- evalWeights(smod1, w="ident")
+wObj1
+@ 
+
+The object contains slots with information about the type of
+moments. When the slot ``sameMom'' is TRUE, it indicates that all
+instruments are the same in each equation.
+
+<<>>=
+wObj1@sameMom
+@ 
+
+This information allows the different methods to treat the weighting
+matrix in a more efficient way. The other slots are:
+
+<<>>=
+wObj1@type
+@ 
+
+which also help to choose an efficient way to do operations, and 
+
+<<>>=
+wObj1@eqnNames
+wObj1@momNames
+@ 
+
+There are two slots to store the weighting matrix, ``w'' and
+``Sigma''.  The way it is stored depends on the ``vcov'' type of the
+``sysGmmModels'' object and on the value of the argument ``w'' of
+\textit{evalWeights}. If we provide a fixed matrix, it must be
+$Q\times Q$:
+
+<<>>=
+wObj2 <- evalWeights(smod1, w=diag(16))
+@ 
+
+In that case, ``Sigma'' is NULL and the slot ``w'' is equal to the
+provided weighting matrix. Also, the ``type'' slot is equal to
+``weights'', which indicates that operations like $G'WG$ will be
+computed without having to do additional oparations on $W$.  If the
+argument ``w'' is set to ``optimal'', which is the default, the
+optimal weights matrix is computed based on the slot ``vcov'' of the
+model.
+
+If ``vcov'' is equal to ``MDS'', we obtain the following.
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
+wObj <- evalWeights(smod1, theta=list(1:3,1:4,1:4))
+is(wObj@w)
+wObj@Sigma
+@ 
+
+In that case, there is no benefit of computing $\hat{\Sigma}$. The
+slot ``w'' is the QR decomposition of the $n\times Q$ matrix
+$g(\theta)/\sqrt{n}$ so that $R'R=\hat{S}\equiv
+\frac{1}{n}\sum_{i=1}^n g_i(\theta)g_i'(\theta)$, where $R$ is the
+upper triangular matrix from the decomposition. Stored this way, it is
+easy to compute, for example, $G'\hat{S}^{-1}G$.
+
+When ``vcov'' is set to ``iid'', the format of the slot ``w'' depends
+on whether the instruments are the same across equations or not. In
+any case, the slot ``Sigma'' is equal to $\hat{\Sigma}$. When the
+instruments are not the same, there is no benefit of storing a QR
+decomposition because it cannot be used to invert the weighting
+matrix. In that case, the slot ``w'' is $Z'Z/n$, where $Z$ is a
+$n\times Q$ matrix that contains all instruments for all equations. If
+all instruments are the same, ``w'' is equal to the QR decomposition
+of the $n\times q_1$ matrix $Z_1/\sqrt{n}$, which facilitates the
+computation of, for example, $G'WG=G'[\hat{\Sigma}^{-1}\otimes
+  (Z_1'Z_1/n)^{-1}]G$. Also, it is possible to set the ``wObj''
+argument of \textit{evalWeights} to a previously estimated object to
+avoid recomputing the slot ``w''. It is particularly usefull in
+iterative GMM or CUE.
+
+As for the single equation case, any operation $A'WB$ are done using
+the \textit{quadra} method. We can therefore compute the value of the
+objective function using the following operation:
+
+<<>>=
+gt <- evalMoment(smod1, theta=list(1:3, 1:4, 1:4)) ## this is a list
+gbar <- colMeans(do.call(cbind, gt))
+obj <- smod1@n*quadra(wObj, gbar)
+obj
+@ 
+
+An easier way to compute the objective function is to use the
+\textit{evalGmmObj} method.
+
+<<>>=
+evalGmmObj(smod1, theta=list(1:3,1:4,1:4), wObj=wObj)
+@ 
+
+\subsubsection{The \textit{solveGmm} method for systems of equations}\label{sec:smomentmodel-solve}
+
+The method computes the GMM estimates for a given weighting matrix. A
+two-step GMM can be obtained manually this way:
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
+wObj1 <- evalWeights(smod1, w="ident")
+theta0 <- solveGmm(smod1, wObj1)$theta
+wObj2 <- evalWeights(smod1, theta=theta0)
+solveGmm(smod1, wObj2)
+@ 
+
+The method also applies to restricted models.
+
+<<>>=
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+rsmod1 <- restModel(smod1, R1)
+wObj1 <- evalWeights(rsmod1, w="ident")
+theta0 <- solveGmm(rsmod1, wObj1)$theta
+wObj2 <- evalWeights(rsmod1, theta=theta0)
+theta1 <- solveGmm(rsmod1, wObj2)$theta
+theta1
+@ 
+
+We can recover the values of the coefficients of the original
+equations using the \textit{coef} method.
+
+<<>>=
+coef(rsmod1, theta1)
+@ 
+
+The way we estimate models with cross-equation restrictions, is
+identical, but the result is a list with one element, all coefficients
+in a single vector.
+
+<<>>=
+R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
+rsmod1<- restModel(smod1, R2)
+wObj1 <- evalWeights(rsmod1, w="ident")
+theta0 <- solveGmm(rsmod1, wObj1)$theta
+wObj2 <- evalWeights(rsmod1, theta=theta0)
+theta1 <- solveGmm(rsmod1, wObj2)$theta
+theta1
+@ 
+
+Again, we can recover the equation by equation coefficients:
+
+<<>>=
+coef(rsmod1, theta1)
+@ 
+
+\subsubsection{The \textit{gmmFit} method for system of equations}\label{sec:smomentmodel-gmmfit}
+
+This is the main algorithm to obtain GMM estimates of systems of
+equations. The method returns an object of class ``sgmmfit''. The
+latter has a \textit{show} method that print the essential of the
+model fit. We can estimate a system by two step GMM as follows:
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
+gmmFit(smod1, type="twostep")
+@ 
+
+If ``vcov'' is ``iid'' and the instruments differ across equations, we
+obtain the FIVE estimator (Full-Information Instrumental Variable
+Efficient).
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="iid", data=simData)
+gmmFit(smod1, type="twostep")
+@ 
+
+If ``vcov'' is ``iid'', the instruments are the same and first step
+weights are obtained using an equation by equation 2SLS, it returns
+the 3SLS estimates.
+
+<<>>=
+smod1 <- sysMomentModel(g,~z1+z2+z3+z4+z5,vcov="iid", data=simData)
+gmmFit(smod1, type="twostep", initW="tsls")
+@ 
+
+If, on top of that, the instruments are the union of all regressors,
+we get the SUR estimates.
+
+<<>>=
+smod1 <- sysMomentModel(g, vcov="iid", data=simData)
+gmmFit(smod1, type="twostep", initW="tsls")
+@ 
+
+It is also possible to obtain the first step weighting matrix using the equation by equation efficient GMM estimates
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
+res <- gmmFit(smod1, type="twostep", initW="EbyE")
+@
+
+As for the single equation case, a type ``onestep'' is a one step with
+the identity matrix, which is the same as setting the argument
+``weights'' to ``ident''.  If the argument ``weights'' is set to a
+matrix or a ``sysMomentWeights'' object, the method will return a one
+step GMM with a fixed weighting matrix. Finally, we can obtain the
+equation by equation estimtes that uses a specific type, initW and
+weights. In the latter case, it is possible to inform the method that
+the weighting matrix is optimal by setting the argument
+``efficientWeights'' to TRUE.
+
+Finally, it is possible to obtain an equation by equation GMM
+estimates. The estimates are obtained using the same argument
+provided. For example, the following is a two-step efficient equation
+by equation GMM estimates:
+
+<<>>=
+gmmFit(smod1,  EbyE=TRUE) ## type is 'twostep' by default
+@ 
+
+As another example, the following is an equation by equation one-step GMM.
+
+<<>>=
+res <- gmmFit(smod1,  EbyE=TRUE, weights="ident")
+@ 
+
+Restricted models are estimated in exactly the same way.
+
+<<>>=
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+rsmod1 <- restModel(smod1, R1)
+gmmFit(rsmod1)@theta
+R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
+rsmod1<- restModel(smod1, R2)
+gmmFit(rsmod1)@theta
+@ 
+
+\subsubsection{The \textit{tsls} and \textit{ThreeSLS} methods}
+
+A system of equation can be estimated by 2SLS equation by equation
+using the \textit{tsls} method.
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
+res <- tsls(smod1)
+res
+@
+
+It is also possible to estimate a system of equations using the
+\textit{ThreeSLS} method. This is only possible if all instruments are
+the same.
+
+<<>>=
+smod2 <- sysMomentModel(g,~z1+z2+z3+z4+z5,vcov="MDS", data=simData)
+res <- ThreeSLS(smod2)
+@ 
+
+If the instruments are the union of the regressors, the function returns the SUR estimates.
+
+<<>>=
+smod2 <- sysMomentModel(g,,vcov="MDS", data=simData)
+res <- ThreeSLS(smod2)
+@ 
+
+The difference between the 3SLS and SUR using \textit{ThreeSLS}
+instead of \textit{gmmFit} is that the latter is an efficient GMM,
+while the former will only be efficient if the ``vcov'' of the model
+is ``iid''. Since the ``vcov'' of the above model is set to ``MDS'',
+the 3SLS and SUR are not efficient GMM estimates. As a result, the
+covariance matrix of the coefficient estimates will be computed using
+a sandwich matrix by deafult. If vcov is set to ``iid'', the following
+produce identical results.
+
+<<>>=
+smod2 <- sysMomentModel(g,~z1+z2+z3+z4+z5,vcov="iid", data=simData)
+gmmFit(smod2, initW="tsls")@theta
+ThreeSLS(smod2)@theta
+@ 
+
+The \textit{tsls} method returns an object of class ``stsls'' which
+inherits from ``sgmmfit'', and \textit{ThreeSLS} returns an object of
+class ``sgmmfit''.
+
+
+\subsubsection{Methods for ``sgmmfit'' class objects}
+
+\begin{itemize}
+  
+\item \textit{meatGmm}: It returns the $K\times K$ matrix
+  $G'W\hat{V}WG$, where $G$ is the block diagonal matrix with the
+  $j^{th}$ block being the $q_j\times k_j$ matrix
+  $G_j=\frac{1}{n}\sum_{i=1}^n dg_{ji}(\hat{\theta}_j)/d\theta_j$ for
+  $j=1,...,m$.  As for single equation models, if the argument
+  ``robust'' is FALSE, it is assumed that $W=V^{-1}$ and it returns
+  $G'\hat{V}^{-1}G/n$, where $V$ is the covariance matrix computed
+  using the final coefficient estimates. If TRUE, is returns
+  $G'W\hat{V}WG$, with $\hat{V}$ computed with the coefficient
+  estimates and $W$ being the weigthing matrix used to get it.
+  
+\item \textit{bread}: It returns $(G'WG)^{-1}$, where $W$ is the last
+  weights used to compute the final coefficient estimates. If the
+  model is estimated by efficient GMM, the bread is a consistent
+  estimator of the covariance matrix of the coefficients.
+  
+\item \textit{vcov}: It returns the covariance matrix of the
+  vectorized coefficients. It is therefore $K\times K$. As for single
+  equation, it returns the sandwich matrix
+  $(G'WG)^{-1}G'W\hat{V}WG(G'WG)^{-1}/n$ (or the robust one) if the
+  model was not estimated by efficient GMM, and
+  $(G'\hat{V}^{-1}G)^{-1}/n$ otherwise. Alternatively, it is possible
+  to force \textit{vcov} to return a sandwich matrix by setting the
+  argument ``sandwich'' to TRUE, or to force it to not be a sandwich
+  by setting the argument to FALSE. It is also possible to change the
+  specification of the model by setting the argument ``modelVcov'' to
+  another ``vcov'' type. If different from the fitted model, a
+  sandwich is automatically computed. It is also possible to adjust
+  the covariance matrix for the degrees of freedom by setting the
+  argument ``adj.df'' to TRUE, which multiplies the covariance matrix
+  by $n/(n-K)$, or to compute only the bread by setting the argument
+  ``breadOnly'' to TRUE.
+  
+\item \textit{specTest}: As for single equation, it tests the null
+  hypothesis that $\E[g_i(\theta)]=0$. The degrees of freedom is
+  $Q-K$, where $Q=\sum_{i=1}^m q_i$ and $K=\sum_{i=1}^m k_i$. It
+  returns an object of class ``specTest'' which has its own
+  \textit{show} and \textit{print} methods. For the test to be valid,
+  the model must be estimated by efficient GMM. The only signature
+  available for now is (``sgmmfit'', ``missing''), so we cannot test
+  subsets of the instruments.
+  
+<<>>=
+smod1 <- sysMomentModel(g, h, vcov="iid", data=simData)
+res <- gmmFit(smod1)
+specTest(res)
+@ 
+
+\item \textit{summary}: Summarizes the estimation results with an
+  equation by equation coefficient matrix, the \textit{specTest}
+  result and an equation by equation first stage F-test. It returns an
+  object of class ``summarySysGmm'' with its own \textit{show} and
+  \textit{print} methods.
+  
+<<>>=
+summary(res)
+@   
+
+The method works also for restricted models.
+
+<<>>=
+smod1 <- sysMomentModel(g,h,vcov="iid", data=simData)
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+rsmod1 <- restModel(smod1, R1)
+summary(gmmFit(rsmod1))@coef
+R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
+rsmod1<- restModel(smod1, R2)
+summary(gmmFit(rsmod1))@coef
+@ 
+
+\item \textit{hypothesisTest}: For hypothesis testing, the method can
+  test any linear restriction using either LM, LR or Wald
+  tests. Consider the following unrestricted and restricted models.
+  
+<<>>=
+smod1 <- sysMomentModel(g, h, vcov="MDS", data=simData)
+res.u <- gmmFit(smod1)
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+rsmod1 <- restModel(smod1, R1)
+res.r <- gmmFit(rsmod1)
+@ 
+
+The methods works as for single equations. We can just provide the
+unrestricted model and the $R$ and $q$ to get the Wald test, provide
+only the restricted fit for the LR test, or provide both and choose
+among the three tests by setting the argument ``type'' to the
+appropriate value. We only show the latter case.
+
+<<>>=
+hypothesisTest(res.u, res.r, type="Wald")
+@ 
+
+It is as easy to test cross-equation restrictions.
+
+<<>>=
+R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
+rsmod1<- restModel(smod1, R2)
+res2.r <- gmmFit(rsmod1)
+hypothesisTest(res.u, res2.r, type="LR")
+@ 
+
+
+\end{itemize}
+
+\subsubsection{Direct estimation with \textit{gmm4}}\label{sec:smomentmodel-gmm4}
+
+Again, we can do everything at once using the \textit{gmm4}
+function. For example, if we want to estimate a model by two-step GMM
+with ``MDS'' errors, we proceed as follows:
+
+<<>>=
+res <- gmm4(g, h, type="twostep", vcov="MDS", data=simData)
+res
+@ 
+
+It produces an object of class ``sgmmfit'' so all of its methods can
+be apply to the output. The function \textit{gmm4} recognizes that it
+is a system because the first argument is a list of formulas. You can
+estimate it equation by equation by setting the argument ``EbyE'' to
+TRUE:
+
+<<>>=
+res <- gmm4(g, h, type="twostep", vcov="MDS", EbyE=TRUE, data=simData)
+res
+@ 
+
+To estimate a model by 3SLS, or SUR, we just need the right model:
+
+<<>>=
+res <- gmm4(g, ~z1+z2+z3+z4+z5, type="twostep", vcov="iid", initW="tsls", data=simData) #3SLS
+res <- gmm4(g, NULL, type="twostep", vcov="iid", initW="tsls", data=simData) #SUR
+@ 
+
+To estimate a restricted model, simply add the restrictions
+
+<<>>=
+R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
+res <- gmm4(g, h, data=simData, cstLHS=R1) #two-step by default
+res
+@ 
+
+\subsection{Textbooks Applications} \label{sec:smomentmodel-app}
+\subsubsection{Greene}
+
+In this section, we kind of reproduce results from
+\cite{greene12}. Textbook with GMM estimation of systems of equations
+are not common.
+
+In Table 10.3, the author estimates the following system of equations:
+\begin{eqnarray*}
+s_k &=& \beta_k + \delta_{kk} \log\left(\frac{p_k}{p_m}\right) +  \delta_{kl} \log\left(\frac{p_l}{p_m}\right) +  \delta_{ke} \log\left(\frac{p_e}{p_m}\right) + u_k\\
+s_l &=& \beta_l + \delta_{lk} \log\left(\frac{p_k}{p_m}\right) +  \delta_{ll} \log\left(\frac{p_l}{p_m}\right) +  \delta_{le} \log\left(\frac{p_e}{p_m}\right) + u_l\\
+s_e &=& \beta_e + \delta_{ek} \log\left(\frac{p_k}{p_m}\right) +  \delta_{el} \log\left(\frac{p_l}{p_m}\right) +  \delta_{ee} \log\left(\frac{p_e}{p_m}\right) + u_e
+\end{eqnarray*}
+
+where $k$, $l$, $e$ and $m$ stand for capital, labor, energy and
+materials. The dependent variables are shares and the regressors are
+prices. The equation for materials is omitted because it is equal to
+one minus the sum of the other three. The system with all four would
+be singular. Without any restriction, this is just a multivariate
+regression in which all equation are just identified. Any GMM
+estimation would therefore be identical to OLS. If we impose
+restrictions on the coefficients, however, some equations become
+over-identified and GMM deviates from OLS. In particular, if we assume
+iid errors, efficient GMM becomes SUR since all regressors are
+considered exogenous. It turns out that the theory behind the model
+implies that $\delta_{kl}=\delta_{lk}$, $\delta_{le}=\delta_{el}$ and
+$\delta_{ke}=\delta_{ek}$. SUR estimation of the restricted model
+should lead to results that are close to Table 10.3 which were
+generated by restricted feasible GLS.
+
+First, we normalize the prices and take the log.
+<<>>=
+data(ManufactCost)
+price <- c("Pk","Pl","Pe")
+ManufactCost[,price] <- log(ManufactCost[,price]/ManufactCost$Pm)
+@ 
+
+In the dataset, the shares are labeled $K$, $L$ and $E$. The
+unrestricted model can be defined as follows.
+
+<<>>=
+g <- list(Sk=K~Pk+Pl+Pe,
+          Sl=L~Pk+Pl+Pe,
+          Se=E~Pk+Pl+Pe)
+mod <- sysMomentModel(g, NULL, data=ManufactCost, vcov="iid")
+@ 
+
+Notice that the second argument is NULL because we want the
+instruments to be the regressors. We can now create the restricted
+model by adding the equation names to each coefficient names.
+
+<<>>=
+R <- c("Sk.Pl=Sl.Pk", "Sk.Pe=Se.Pk", "Sl.Pe=Se.Pl")
+rmod <- restModel(mod, R=R)
+@ 
+
+We can then estimate the model and print the coefficient matrix:
+
+<<>>=
+res <- gmmFit(rmod)
+summary(res)@coef
+@ 
+
+We can also test the restriction:
+
+<<>>=
+res.u <- gmmFit(mod)
+hypothesisTest(res.u, res)
+@ 
+
+In Table 10.5, the author estimates the macro model of \cite{klein50}:
+\begin{eqnarray*}
+C_t &=& \theta_{c0} + \theta_{c1} P_t + \theta_{c2} P_{t-1} + \theta_{c3} (W_t^p+W_t^g) + \epsilon_{ct}\\
+I_t &=& \theta_{i0} + \theta_{i1} P_t + \theta_{i2} P_{t-1} + \theta_{i3} K_{t-1} + \epsilon_{it}\\
+W^D_t &=& \theta_{w0} + \theta_{w1} X_t + \theta_{w2} X_{t-1} + \theta_{w3} A_t + \epsilon_{wt}
+\end{eqnarray*}
+The exogenous and predetermined variables that are used as instruments
+in each equation are $Z_t=\{G_t, T_t, W_t^g, A_t, K_{t-1}, P_{t-1},
+X_{t-1}\}$. The data are annual observations from 1920 to 1941. We
+therefore have only 22 observations (21 because of the lags).
+
+The table reports the results for many estimation method. We can
+reproduce 2SLS and 3SLS, but we only consider the latter because we
+have covered 2SLS cases in Section \ref{sec:momentmodel-app}. First we
+arrange the data to get lags and $A_t$.
+
+<<>>=
+data(Klein)
+Klein1 <- Klein[-22,]
+Klein <- Klein[-1,]
+dimnames(Klein1) <- list(rownames(Klein), paste(colnames(Klein),"1",sep=""))
+Klein <- cbind(Klein, Klein1)
+Klein$A <- (Klein$YEAR-1931)
+@ 
+
+We can then estimate it by 3SLS. To reproduce the same standard
+errors, we need to use the bread only. In other words, using the final
+estimate to compute the weights leads to slightly different standard
+errors. In other words, the covariance matrix must be estimated using
+\[
+\left[G'\left(\tilde{\Sigma}^{-1}\otimes (Z'Z/n)^{-1}\right)G\right]^{-1}/n,
+\]
+where $\tilde{\Sigma}$ is computed using the 2SLS estimates. By
+default, the package updates $\tilde{\Sigma}$ using the final
+estimates. The following is identical to Table 10.5, section 3SLS of
+\cite{greene12}.
+
+<<>>=
+g <- list(C=C~P+P1+I(WP+WG),
+          I=I~P+P1+K1,
+          Wp=WP~X+X1+A)
+h <- ~G+T+WG+A+K1+P1+X1          
+res <- ThreeSLS(g, h, vcov="iid", data=Klein)
+summary(res, breadOnly=TRUE)@coef
+@ 
+
+
+\bibliography{empir}
+\pagebreak
+\Large{\textbf{Appendix}}
+\appendix
+\section{Some extra codes}
+\subsection{The \textit{Extract} method}
+<<extract, eval=FALSE>>=
+@ 
+
+\end{document} 
+

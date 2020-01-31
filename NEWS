@@ -1,0 +1,4 @@
+Changes in version 0.0-2
+
+o Added restricted EEL (REEL), which imposes the implied probabilities to be non-negative.
+o Algorithms like WU for EL and EEL are now written in Fortran

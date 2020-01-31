@@ -1,0 +1,54 @@
+useDynLib(momentfit, .registration = TRUE, .fixes="F_")
+importFrom("methods", is, new, show, "slot<-", "slotNames", "validObject",
+           "getClassDef", "selectMethod", "callNextMethod", "as", "setAs",
+           "getMethod", "setOldClass", "existsFunction")
+
+importFrom("parallel", mclapply)
+
+importFrom("graphics", plot, polygon, grid, points, text)
+
+importFrom("grDevices", rgb, col2rgb)
+
+importFrom("utils", capture.output, head, tail)
+
+importFrom("stats", "ar", "as.formula", "model.matrix","vcov",
+           "model.response", "na.omit", "terms", "residuals",
+           "D", "numericDeriv", "sd", "optim", "lm", "pf", "coef", "update",
+           "fitted", "lm.fit", "pchisq", "pnorm", "printCoefmat", "anova",
+           "model.frame", "reformulate", "formula", "nlminb", "kernapply",
+           "constrOptim", "kernel", "confint", "qnorm", "uniroot", "getCall", "qchisq")
+importFrom("sandwich", "vcovHAC", "estfun","kernHAC","vcovCL", "meatCL",
+           "bread","bwAndrews","bwNeweyWest","weightsAndrews",
+           "weightsLumley", "vcovHC")
+
+### S4 Methods and Classes
+exportClasses("nonlinearModel", "linearModel", "functionModel", "momentModel",
+              "regModel", "allNLModel", "rmomentModel", "rlinearModel",
+              "rformulaModel", "momentWeights", "sysMomentWeights",
+              "rnonlinearModel", "rfunctionModel", "gmmfit",
+              "slinearModel", "snonlinearModel", "sysModel",
+              "rslinearModel", "rsnonlinearModel", "summarySysGmm",
+              "rsysModel", "formulaModel","rfunctionModel", "sSpec",
+              "summaryGmm", "specTest", "confint", "mconfint",
+              "hypothesisTest", "stsls", "sgmmfit", "gelfit", "summaryGel",
+              "tsls")
+
+exportMethods(print, show, kernapply, coef,  model.matrix, bread, summary,
+              residuals, "[", vcovHAC, subset, update, vcov, plot, confint, merge)
+
+export(momentModel, modelResponse, evalMoment, Dresiduals, modelDims, evalDMoment,
+       evalWeights, evalGmmObj, solveGmm, momentStrength,
+       gmmFit, tsls, evalGmm, quadra, meatGmm, specTest, hypothesisTest, DWH,
+       printRestrict, restModel, getRestrict, gmm4, sysMomentModel, ThreeSLS,
+       rhoET, rhoEL, rhoEEL, rhoHD, Wu_lam, EEL_lam, REEL_lam, getLambda, 
+       solveGel, rhoETEL, rhoETHD, ETXX_lam, gelFit, evalGel, getImpProb,
+       evalGelObj, momFct, gel4)
+ 
+###  S3 methods ###
+
+### Need to find a better way
+S3method(estfun, momentFct)
+
+
+
+

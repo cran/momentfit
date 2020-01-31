@@ -1,0 +1,1040 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage{amsthm}
+
+\usepackage[hmargin=2cm,vmargin=2.5cm]{geometry}
+\newtheorem{theorem}{Theorem}
+\newtheorem{col}{Corollary}
+\newtheorem{lem}{Lemma}
+\usepackage[utf8x]{inputenc}
+\newtheorem{ass}{Assumption}
+\usepackage{amsmath}
+\usepackage{verbatim}
+\usepackage[round]{natbib}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks,
+  citecolor=black,
+  filecolor=black,
+  linkcolor=black,
+  urlcolor=black
+}
+
+\bibliographystyle{plainnat}
+
+
+\author{Pierre Chauss\'e}
+\title{\textbf{Generalized Empirical Likelihood with R}}
+\begin{document}
+
+\maketitle
+
+\newcommand{\E}{\mathrm{E}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\Prob}{\mathrm{Pr}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Vect}{\mathrm{Vec}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\conP}{\overset{p}{\to}}
+\newcommand{\conD}{\overset{d}{\to}}
+\newcommand\R{ \mathbb{R} }
+\newcommand\N{ \mathbb{N} }
+\newcommand\C{ \mathbb{C} }
+\newcommand\rv{{\cal R}}
+\newcommand\Q{\mathbb{Q}}
+\newcommand\PR{{\cal R}}
+\newcommand\T{{\cal T}}
+\newcommand\Hi{{\cal H}}
+\newcommand\La{{\cal L}}
+\newcommand\plim{plim}
+\renewcommand{\epsilon}{\varepsilon}
+
+\abstract{This an extention of the gmmS4 vignette, to explain how to
+  use the package for generalized empirical likelihood estimation.}
+%\VignetteIndexEntry{Generalized Empirical Likelihood with R}
+%\VignetteDepends{momentfit}
+%\VignetteKeywords{empirical likelihood, exponential tilting,
+%euclidean empirical likelihood}
+%\VignettePackage{momentfit}
+%\VignetteEngine{knitr::knitr}
+<<echo=FALSE>>=
+library(knitr)
+opts_chunk$set(size='footnotesize')
+@ 
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{A very brief review of the GEL method}
+We present how to use the package to estimate models by the
+Generalized Empirical Likelihood method (GEL) (see
+\cite{newey-smith04} for the iid case and \cite{anatolyev05} for
+weakly dependent processes). We assume that the reader has read the
+gmmS4 vignette in which many classes and methods needed are
+defined. We first describe the method without going into too much
+details. The author can refer to the above papers for a detailed
+description, or \cite{chausse10} who explains GEL estimation using the
+gmm (\cite{gmm})package. 
+
+The estimation is based on the following moment conditions 
+\[
+\E[g_i(\theta)]=0,   
+\]
+For the iid case, the estimator is defined as the solution to either
+
+\[
+ \hat{\theta} = \arg\min_{\theta,p_i} \sum_{i=1}^n h_n(p_i) 
+\]
+subject to,
+\[
+\sum_{i=1}^n p_ig_i(\theta) = 0 
+\]
+and
+\[
+\sum_{i=1}^n p_i=1,
+\]
+where $h_n(p_i)$ belongs to the following Cressie-Read family of discrepancies:
+\[
+ h_n(p_i) = \frac{[\gamma(\gamma+1)]^{-1}[(np_i)^{\gamma+1}-1]}{n}, 
+\]
+or
+\begin{equation}\label{gel_obj}
+ \hat{\theta} = \arg\min_{\theta}\left[\max_{\lambda} \frac{1}{n}\sum_{i=1}^n\rho\left(\lambda'g_i(\theta)\right)\right]
+\end{equation}
+
+The first is the primal and the second is the dual problem, the latter
+being preferred in general to define GEL estimators. The vector
+$\lambda$ is the Lagrange multiplier associated with the first
+constraint in the primal problem. Its estimator plays an important
+role in testing the validity of the moment conditions. $\rho(v)$ is a
+strictly concave function normalized so that
+$\rho'(0)=\rho''(0)=-1$. It can be shown that $\rho(v)=\ln{(1-v)}$
+corresponds to Empirical Likelihood (EL) of \cite{owen01} ,
+$\rho(v)=-\exp{(v)}$ to the Exponential Tilting (ET) of
+\cite{kitamura-stutzer97}, and $\rho(v)=(-v-v^2/2)$ to the Continuous
+Updated GMM estimator (CUE) of \cite{hansen-heaton-yaron96}. In the
+context of GEL, the CUE is also known at the Euclidean Empirical
+Likelihood (EEL), because it corresponds to $h_n(p_i)$ being the
+Euclidean distance. 
+
+Once the solution is obtained for $\theta$ and $\lambda$, the implied
+probabilities can be computed as follows
+
+\begin{equation}\label{imp_prob}
+\hat{p}_i = \frac{\rho'(\hat{\lambda}'g_i(\hat{\theta}))}{\sum_{j=1}^n
+  \rho'(\hat{\lambda}'g_j(\hat{\theta}))}
+\end{equation}
+
+If we relax the iid assumption, the problem is identical, but the
+moment function must be smoothed using a kernel method. \cite{smith11}
+proposes to replace $g_i(\theta)$ by:
+\[
+g^w_i(\theta) = \sum_{s=-m}^m w(s)g_{i-s}(\theta)
+\]
+where $w(s)$ are kernel based weights that sum to one (see also
+\cite{kitamura-stutzer97} and \cite{smith11}. 
+
+\subsection{An S4 class object for moment based models} \label{sec:momentmodel}
+
+There is no dinstrinction between GEL and GMM models. They are all
+objects of class ``momentModel'', and they are described in the
+gmmS4.pdf vignette. For the purpose of presenting the GEL method, we
+create the same models.
+
+\begin{itemize}
+  \item Linear models:
+
+<<>>=
+library(momentfit)
+data(simData)
+lin <- momentModel(y~x1+x2, ~x2+z1+z2, data=simData, vcov="iid")  
+@ 
+
+\item Formula-type models:
+
+<<>>=
+theta0=c(mu=1,sig=1)
+x <- simData$x1
+dat <- data.frame(x=x, x2=x^2, x3=x^3, x4=x^4)
+gform <- list(x~mu,
+              x2~mu^2+sig, 
+              x3~mu^3+3*mu*sig,
+              x4~mu^4+6*mu^2*sig+3*sig^2)
+form <- momentModel(gform, NULL, theta0=theta0, vcov="MDS", data=dat)
+form
+@ 
+
+\item function:   
+  
+<<>>=  
+fct <- function(theta, x)
+    cbind(x-theta[1], (x-theta[1])^2-theta[2],
+          (x-theta[1])^3, (x-theta[1])^4-3*theta[2]^2)
+dfct <- function(theta, x)
+    {
+        m1 <- mean(x-theta[1])
+        m2 <- mean((x-theta[1])^2)
+        m3 <- mean((x-theta[1])^3)
+        matrix(c(-1, -2*m1, -3*m2, -4*m3, 
+                 0, -1, 0, -6*theta[2]), 4, 2)
+    }
+theta0=c(mu=1,sig2=1)
+func <- momentModel(fct, simData$x3, theta0=theta0, grad=dfct, vcov="iid")
+func
+@ 
+
+\item Non-linear models:
+
+<<>>= 
+theta0=c(b0=1, b1=1, b2=1)
+gform <- y~exp(b0+b1*x1+b2*x2)
+nlin <- momentModel(gform, ~z1+z2+z3+x2, theta0=theta0, vcov="MDS", data=simData)
+nlin
+@
+\end{itemize}
+
+\subsection{The rhoXXX functions}
+
+The package provides $\rho(v)$ for ET, EL, EEL and HD. The function
+names are respectively ``rhoET'', ``rhoEL'', ``rhoEEL'' and ``rhoHD''.
+For any other GEL, users can pass user specific $\rho(v)$ function to
+the rhoFct argument of the gelModel(). The following example shows how
+the function must be built:
+
+<<>>=
+rhoEL
+@ 
+
+Therefore, the function must be in the form $f(X,\lambda,d,k)$, where
+the first argument is an $n\times q$ matrix, the second argument is a
+vector of $q$ elements, the third is an integer that indicates the
+order of derivative to return, and the last is a scalar that depends
+on the kernel used to smooth the moment function. We will discuss that
+in more details below. The function must return the vector $\rho(k
+X\lambda)$, $\rho'(k X\lambda)$ or $\rho''(k X\lambda)$, when derive
+is 0, 1, or 2, where $\rho'(v)$ and $\rho''(v)$ are the first and
+second derivative of $\rho(v)$.
+
+\subsection{The Lagrange multiplier solver}
+
+The function getLambda() function solve the maximization problem 
+\[
+\max_\lambda \frac{1}{n} \sum_{i=1}^n \rho(\lambda'X_i)
+\]
+It is used to solve problem (\ref{gel_obj}). The arguments are:
+
+<<>>=
+args(getLambda)
+@ 
+
+The first argument is the $n\times q$ matrix $X$. The second argument
+is the starting value for $\lambda$. If set to NULL, a vector of
+zeroes is used. The third argument is the GEL type, which is either
+"ET", "EL", "EEL", "REEL" or "HD". If the rhoFct is provided, getType
+is ignored. The argument control is used to pass a list of arguments
+to optim(), nlminb() or constrOptim(). The argument ``k'' is the
+scalar described in the previous subsection. To describe all other
+arguments, we are presenting the options by type of GEL:
+
+\begin{itemize}
+\item EL: There are three possible options for EL. The default is
+  ``nlminb'', in which case, the arguments tol, maxiter and method are
+  ignored. If algo is set to ``optim'', the solution is obtained using
+  constrOptim(), with the restriction $(1-\lambda'X_i)>0$ for all
+  $i$. If algo is set to ``Wu'', the \cite{wu05} algorithm is
+  used. The argument tol and maxit are used to control the stopping
+  rule. 
+
+\item HD: Identical to EL, except that the ``Wu'' algorithm is not
+  available for that type of GEL.
+
+\item EEL: There is an analytical solution, so all other arguments are
+  ignored.
+
+\item REEL: This is EEL with a non-negativity constraint on all
+  implied probabilities. In that case, the maxiter can be used to
+  control the number of iterations.
+
+\item Others: When rhoFct is provided or the type is ET, the solution
+  is obtained by either ``nlminb'' or ``optim''. In that case, the
+  algorithms are controlled through the control argument.
+\end{itemize}
+
+Here are a few example using the simulated dataset (convergence code
+of 0 means that the algorithm converged with no detected problem):
+
+<<>>=
+X <- simData[c("x3","x4","z5")]
+(res <- getLambda(X, gelType="EL"))$lambda
+res$convergence$convergence
+@ 
+
+<<>>=
+(res <- getLambda(X, gelType="ET",control=list(maxit=2000)))$lambda
+res$convergence$convergence
+@ 
+
+The following shows that we can provide getLambda() with a rhoFct instead:
+
+<<>>=
+(res <- getLambda(X, rhoFct=rhoEEL))$lambda
+res$convergence$convergence
+@ 
+
+Although we rarely call the function directly, it is good to
+understand how it works, because it is an important part of the
+estimation procedure.
+@ 
+
+\section{The \textit{solveGel} Method} \label{sec:gelmodels-solve}
+
+The main method to estimate a model by GEL methods is
+\textit{solveGel}. The available signatures are:
+
+<<>>=
+showMethods("solveGel")
+@ 
+
+The arguments are 
+\begin{itemize}
+\item theta0: The initial value for the minimization algorithm. It is
+  required if the model does not have a theta0 slot. If it has a
+  theta0 slot, it is used by default unless a new theta0 is provided.
+\item lambda0: The initial value to pass to the lambda solver. By
+  default, it is set to 0, which is its asymptotic value in case of
+  correctly specified models.
+\item lamSlv: An optional function to solve for lambda. By default,
+  getLambda() is used. The function must have the following form:
+
+<<>>=
+mylSolve <- function(gmat, lambda0, gelType=NULL, rhoFct=NULL, k=1, ...) 
+    {
+        lambda <-  rep(0,ncol(gmat))
+        obj <-  sum(colMeans(gmat)^2)
+        list(lambda=lambda, convergence=0, obj=obj)
+    }
+@ 
+
+Therefore, it must return a list with lambda, convergence and obj. In
+the above example, $\lambda$ is set to a vector of zeros and the
+returned obj is $\bar{g}(\theta)'\bar{g}(\theta)$. The solution will
+therefore be the one step GMM with the weighting matrix equals to the
+identity.
+
+<<>>=
+solveGel(lin,theta0=c(0,0,0), lamSlv=mylSolve)
+@ 
+
+To present a more realistic example, suppose we want to estimate the
+model using the exponentially tilted empirical likelihood (ETEL)
+method of \cite{schennach07}, we could write a function that solves
+the lambda using ET, and returns the empirical log-likelihood ratio:
+
+<<>>=
+mylSolve <- function(gmat, lambda0=NULL, gelType=NULL, rhoFct=NULL, k=1, ...) 
+    {
+        gmat <- as.matrix(gmat)
+        res  <-  getLambda(gmat, lambda0, gelType="ET", k=k)
+        gml <- c(gmat%*%res$lambda)
+        w <- exp(gml)
+        w <- w/sum(w)
+        n <- nrow(gmat)
+        res$obj <- mean(-log(w*n))
+        res
+    }
+etelFit <- solveGel(lin,theta0=c(1,1,0), lamSlv=mylSolve)
+etelFit$theta
+@
+
+That's equivalent to setting gelType to ``ETEL'':
+
+<<>>=
+solveGel(update(lin, gelType="ETEL"), theta0=c(1,1,0))$theta
+@ 
+
+\item coefSlv: A character string that indicates the name of the
+  minimization solver used to obtain $\hat{\theta}$. By default,
+  "optim" is use. The other options are "nlminb" and "constrOptim". 
+  
+\item lControl: A list of options for the lambda solver. It is passed
+  to getLambda() or lamSlv() if provided. By default, the \cite{wu05}
+  method is used to solve for the Lagrange multiplier. For example, we
+  can use nlminb() instead:
+
+<<warning=FALSE>>=
+solveGel(lin, theta0=c(1,1,0), lControl=list(algo="nlminb"))$theta
+@   
+
+\item tControl: A list of control for the coefSlv function. We could,
+  for example, use the following options:
+
+<<>>=
+solveGel(lin, theta0=c(1,1,0),
+         tControl=list(method="BFGS", control=list(maxit=2000, reltol=1e-9)))$theta
+@   
+
+In that particular case, the list is directly passed to optim().
+   
+\end{itemize}
+
+The method returns a list with: theta=$\hat{\theta}$,
+lambda=$\hat{\lambda}$, convergence = convergence message and code for
+$\theta$, and lconvergence = convergence message and code for
+$\lambda$.
+
+\section{The \textit{gelFit} Method} \label{sec:gelmodels-modelfit}
+
+This is the main estimation method. It returns an object of class
+``gelfit''. The arguments are:
+
+\begin{itemize}
+\item object: Any object that belongs to the union class ``gelModels''
+\item gelType: Optional type of GEL. By default, the model is
+  estimated by empirical likelihood.
+\item rhoFct: Optional $\rho(v)$ function if we want to estimate the
+  model with a function not included in the package.
+\item initTheta: Method to obtain the starting value for $\theta$. By
+  default, the one step GMM is used. The other option is to use the
+  one included in the object.
+\item theta0: The stating value for $\theta$. If provided, the
+  argument initTheta is ignored.
+\item lambda0: Starting value for $\lambda$. By default, a vector of
+  zeros is used.
+\item vcov: Logical argument that specifes if the covariance matrices
+  of $\hat{\theta}$ and $\hat{\lambda}$ should be computed? It is
+  FALSE by default.
+\item ... : Additional argument that is passed to the
+  \textit{gelSolve} method.  
+  \end{itemize}
+
+In general, it works fine with the default arguments:
+
+<<warning=FALSE>>=
+fit <- gelFit(lin)
+@ 
+
+The following slots are available for the ``gelfit'' object:
+
+<<>>=
+showClass("gelfit")
+@ 
+
+\subsection{Methods for ``gelfit'' classes} \label{sec:gelmodels-gelfitm}
+
+\begin{itemize}
+  
+\item \textit{print}: It prints the model, $\hat{\theta}$ and
+  $\hat{\lambda}$. The arguments ``model'' and ``lambda'' can be set
+  to FALSE to avoid printing them.
+  
+<<>>=
+fit <- gelFit(lin)
+print(fit, lambda=FALSE, model=FALSE)
+@   
+
+\item \textit{residuals}: For ``linearGel'' and ``nonlinearGel'', it
+  returns the difference between the left hand side and right hand
+  side.
+  
+\item \textit{getImpProb}: It computes the vector of implied
+  probabilities $\hat{p}_i$'s. By default, they are defined as:
+  \[
+  \hat{p}_i = \frac{-\rho'(\hat{\lambda}'g_i(\hat{\theta}))/n}{\sum_{j=1}^n -
+    \rho'(\hat{\lambda}'g_j(\hat{\theta}))/n}
+  \]
+  The options are
+  \begin{itemize}
+    \item posProb: This option is only considered for EEL type of
+      GEL. If set to TRUE, the method of
+      \citet{antoine-bonnal-renault07} is used to compute the 
+      probabilities:
+\[      
+\tilde{p}_i = \frac{\hat{p}_i + \varepsilon/n}{1+\varepsilon},
+\]
+where $\varepsilon=-n\min(\min_i(\hat{p}_i), 0)$, and
+$\hat{p}_i=-\rho'(g_i(\hat{\theta}))/n$, which is the unormalized
+version of the above definition. It is then normalized to sum to
+1. The method is only needed when we want to compute moments based on
+them. It is therefore set to FALSE by default.
+\item normalize: If TRUE, the default, the above normalized version is
+  returned. If FALSE, it returns $-\rho'(g_i(\hat{\theta}))/n$. 
+    \end{itemize}
+
+The method returns a list with pt, the vector $\{\hat{p}_i\}$,
+convMom = $\sum_{i=1}^n \hat{p}_ig_i(\hat{\theta})$, and
+convProb = $|(\sum_{i=1}^n \hat{p}_i)-1|$. convMom is important,
+because it indicates if the estimation went well. It should be a
+vector close to zero.
+
+<<>>=
+pt <- getImpProb(fit)
+pt$convMom
+@ 
+  
+\item \textit{vcov}: It returns the covariance matrices of
+  $\hat{\theta}$ and $\hat{\lambda}$ in a list. The returned
+  covariance matrix for $\hat{\theta}$ is:
+
+\[
+\hat{\Sigma} = \frac{1}{n}\left[\hat{G}'\hat{\Omega}^{-1} \hat{G} \right]^{-1}
+\]
+  
+when the ``vcov'' component of the object is not ``HAC'', with
+
+\[
+\hat{G} = \frac{1}{n}\sum_{i=1}^n \frac{dg_i(\hat{\theta})}{d\theta},
+\]
+
+and
+
+\[
+\hat{\Omega} = \frac{1}{n}\sum_{i=1}^n g_i(\hat{\theta})
+  g_i(\hat{\theta})'.
+\]
+
+For HAC specification, the covariance matrix is:
+
+\[
+\hat{\Sigma}_w = \frac{1}{n}\left[\hat{G}_w'\hat{\Omega}_w^{-1} \hat{G}_w\right]^{-1},
+\]
+
+with
+
+\[
+\hat{G}_w = \frac{1}{nk_1}\sum_{i=1}^n \frac{dg^w_i(\hat{\theta})}{d\theta}
+\]
+
+and
+
+\[
+\hat{\Omega}_w = \frac{b}{nk_2}\sum_{i=1}^n g^w_i(\hat{\theta})
+  g_i^w(\hat{\theta})',
+\]
+
+where $b$ is the bandwidth and the scalars $k_1$ and $k_2$ are
+determined by the kernel. The values of $\{k_1,k_2\}$ are $\{2,2\}$
+when the smoothing is based on the Truncated kernel, which implies
+Bartlett for the HAC estimator, and $\{1,2/3\}$ when the smoothing is
+based on the Bartlett kernel, which implies Parzen for the HAC
+estimator.
+
+Using the above definitions, the returned covariance matrix for
+$\hat{\lambda}$ is
+
+\[
+\widehat{Var(\hat{\lambda})} = \frac{1}{n}\left[\hat{\Omega}^{-1}  -
+\hat{\Omega}^{-1} \hat{G} \hat{\Sigma} \hat{G}'\hat{\Omega}^{-1} \right]
+\]
+
+for non-smoothed moments, and 
+
+\[
+\widehat{Var(\hat{\lambda})}_w = \frac{b^2}{n}\left[\hat{\Omega}_w^{-1}  -
+\hat{\Omega}_w^{-1} \hat{G}_w \hat{\Sigma}_w \hat{G}_w'\hat{\Omega}_w^{-1} \right]
+\]
+
+for smoothed moments. The method has two additional arguments. The
+first is ``withImpProb'', which is FALSE by default. if set to TRUE,
+all moment estimations in the form $\sum_{i=1}^n[]_i/n$ are replaced
+by $\sum_{i=1}^n \hat{p}_i[]_i$. The second argument is tol, which is
+a tolerance level for too small diagonal elements of the covariance
+matrix of $\hat{\lambda}$. When some moment conditions are not
+binding, the estimated variance of the associated Lagrange multiplier
+may be too small or even negative, which is a numerical problem. To
+avoid negative values, tol is the minimum value the diagonal elements
+can take.
+
+\item \textit{summary}: It returns an object of class
+  ``summaryGel''. It returns the usual tables in estimation
+  methods. The only argument is ... which is passed to the
+  \textit(vcov) method.
+  
+<<>>=
+summary(fit)
+@   
+
+\item{specTest} It returns the likelihood ratio (LR), Lagrange
+  multiplier (LM) and J test, for the hypothesis
+  $H_0:\E(g(\theta))=0$. The signature is ("gelfit", "missing"), so
+  the second argument, which, is not used. The argument type is set to
+  "ALL" by default, which means that the three test are
+  returned. Alternatively we can specify a single test. It returns an
+  object of class ``specTest'' which possesses a \textit{print}
+  method.
+  
+<<>>=
+specTest(fit)
+@   
+
+\item \textit{confint}: It returnd confidence itervals for $\theta$ or
+  $\lambda$ By default, a simple Wald type interval is
+  constructed. The parm argument allows to select just a few
+  parameters. By default, it is done for all.
+  
+<<>>=
+confint(fit, parm=1:2, level=0.90)
+confint(fit, level=0.90, lambda=TRUE)
+@ 
+
+The ``vcov'' argument is used to provide the method with another
+covariance matrix. The ... is passed to the \textit{vcov} method.
+
+Confidence interval can also be semi-parametric, by inverting any of
+the specification test. To undertand how it is constructed, let
+us define $\theta_{-i}$ as the vector $\theta$ without $\theta_i$, and
+$\tilde{\theta}_{-i}(\theta_i)$ its estimate for a given
+$\theta_i$. Let $S(\theta_i, \theta_{-i})$ be one of the specification
+test evaluated at $\{\theta_i, \theta_{-i}\}$. Under the null that
+$\theta_i$ is the true value, 
+
+\[
+T(\theta_i) = S(\theta_i, \tilde{\theta}_{-i}(\theta_i))-S(\hat{\theta_i},\hat{\theta}_{-i})
+\conD \chi^2_1
+\]
+
+The following $(1-\alpha)$ confidence interval for $\theta_i$ is therefore 
+asymptotically valid (given some regularity conditions):
+
+\[
+\{\theta_i | T(\theta_i) \leq C_{1-\alpha}\}
+\]
+
+where $C_{1-\alpha}$ is the $(1-\alpha)$ quantile of the $\chi^2_1$
+distribution. To get $\tilde{\theta}_{-i}$, we need to estimate a
+restricted model for each $\theta_i$ and search for
+$T(\theta_i)=C_{1-\alpha}$. This is done by setting type "invLR",
+"invLM", or "invJ". A function that returns $[T(\theta_i)-C_{i-\alpha}]$
+is passed to the uniroot() function using intervals on both sides of
+$\hat{\theta}_i$. The argument ``fact'' is used to control the
+wideness of the interval passed to uniroot(). By default, the two
+intervals are (one for the left value and one for the right value of
+the confidence interval) $[\hat{\theta}_i-3s_i, \hat{\theta}_i]$ and
+$[\hat{\theta}_i, \hat{\theta}_i+3s_i]$, where $s_i$ is the standard
+error of $\hat{\theta}_i$. If the method fails, it is possible to
+adjust the intervals with ``fact''.
+
+<<>>=
+confint(fit, 1:2, type="invLR", level=0.90)
+@ 
+
+A common application in introductory course on EL, is to compute EL
+confidence interval for a mean. Here, it is done by first creating a
+model with only one intercept and an intercept as instrument:
+
+<<>>=
+muModel <- momentModel(x1~1, ~1, data=simData)
+@ 
+
+We then fit the model:
+
+<<>>=
+muFit <- gelFit(muModel, gelType="EL", tControl=list(method="Brent", lower=-10, upper=10))
+muFit@theta
+@ 
+
+The solution is just the sample mean:
+
+<<>>=
+mean(simData$x1)
+@ 
+
+We can then compute the EL confidence interval:
+
+<<>>=
+confint(muFit, type="invLR")
+@ 
+
+We will see below that we can construct GEL intervals in one step,
+using the \textit{confint} method for ``numeric'' vectors.
+
+\item \textit{update}: The method is used to re-estimate a model with
+  different specifications, keeping all the others equal. Suppose we
+  start with the estimation using the \cite{wu05} algorithm:
+  
+<<>>=
+fit <- gelFit(lin)
+fit@theta
+@   
+
+We want to re-estimate the model with the same algorithm for $\lambda$
+but a different one for $\theta$:
+
+<<>>=
+fit2 <- update(fit, coefSlv="nlminb")
+fit2@theta
+@ 
+
+We can also change the type of GEL 
+
+<<>>=
+fit3 <- update(fit2, gelType="ET", lControl=list())
+fit3@theta
+@ 
+
+It is also possible to pass a new model to \textit{update}. This is
+particularly useful to estimate a restricted model with the same
+numerical methods. This is used by \textit{confint} to compute the
+interval by the inverse of the specification test. 
+
+<<>>=
+rlin <- restModel(fit3@model, "x1=1")
+update(fit3, newModel=rlin)
+@ 
+
+Here, fit3 is an ET estimation. If we restrict the model lin, which is
+EL, the \textit{update} will also use EL. That's why
+\textit{restModel} is applied to the model in fit3.
+\end{itemize}
+
+\subsection{Robust to misspecification standard errors}\label{sec:robtomiss}
+
+The covariance matrix of $\hat{\theta}$ that we described above
+assumes that the model is correctly specified. In that case, the
+constraints associated with the moment conditions are asymptotically
+not binding, which implies that $\hat{\lambda}=O_p(n^{-1/2})$. In
+misspecified models, some moment conditions are not satisfied and the
+associated Lagrange multipliers do not converge to 0. Under some
+regularity conditions \citep{schennach07}, the GEL estimator is still
+root-n consistent for a pseudo true value. However, inference using
+the above expression for the covariance matrices is not valid.
+
+One way to obtain valid inference is to rewrite the GEL model into a
+just-identified GMM one. If we collect the first order conditions of
+the GEL problem for $\theta$ and $\lambda$ into one vector, we get a
+GMM model with moment condition $E(\psi_i(\eta))=0$, where
+
+\[
+\psi_i(\eta) = \begin{pmatrix}
+  \rho'(\lambda'g_i(\theta))G_i(\theta)'\lambda\\
+  \rho'(\lambda'g_i(\theta))g_i(\theta)\\
+  \end{pmatrix}\,,
+\]
+
+and $\eta=\{\theta',\lambda'\}'$. If we define 
+\[
+\hat{\Omega}=\frac{1}{n}\sum_{i=1}^n \psi_i(\hat{\eta})\psi_i(\hat{\eta})'
+\]
+and 
+\[
+\hat{\Gamma}=\frac{1}{n}\sum_{i=1}^n \nabla_\eta \psi_i(\hat{\eta})\,,
+\]
+where $\nabla_\eta$ is the gradiant operator, then
+$\hat{\Gamma}^{-1}\hat{\Omega}\hat{\Gamma}^{-1}$ is a consistent
+estimator of the variance $\sqrt{n}(\hat{\eta}-\eta^*)$, where
+$\eta^*$ is the pseudo true value. The \textit{momFct} method for
+numeric vector and ``gelfit'' object computes the $\psi_i(\eta)$
+matrix. We could therefore obtain a robust-to-misspecification
+covariance matrix using the following steps:
+
+<<>>=
+mod1 <- momentModel(y~x1+x2, ~x2+z1+z2+z3, data=simData)
+fit1 <- gelFit(mod1)
+@ 
+
+We create the $\eta$ vector:
+
+<<>>=
+eta <- c(coef(fit1), fit1@lambda)
+names(eta) <- NULL
+@ 
+
+We create a moment model using the \textit{momFct} method:
+
+<<>>=
+mod2 <-  momentModel(momFct, fit1, theta0=eta, vcov="MDS")
+@ 
+
+After, we just need to evaluate the model and use the \textit{vcov} method:
+
+<<>>=
+fit2 <- evalGmm(mod2, eta)
+v <- vcov(fit2)[1:3,1:3]
+sqrt(diag(v))
+@ 
+
+Which differs a little from the non-robust standard errors:
+
+<<>>=
+sqrt(diag(vcov(fit1)$vcov_par))
+@ 
+
+A quicker way is to use set the option ``robToMiss'' to TRUE:
+
+<<>>=
+sqrt(diag(vcov(fit1, robToMiss=TRUE)$vcov_par))
+@ 
+
+Since the ... of the \textit{summary} method is passed to
+\textit{vcov}, we can obtain a robust-to-misspecification summary table:
+
+<<>>=
+summary(fit1, robToMiss=TRUE)@coef
+@ 
+
+\section{The \textit{evalGel} Method} \label{sec:gelmodels-evalmodel}
+
+This method create a ``gelfit'' object without estimation. It is
+possible to simply fix $\lambda$ and $\theta$. By default, the GEL
+type is set to EL:
+
+<<>>=
+print(evalGel(lin, theta=c(1,2,3), lambda=rep(.1,4)), model=FALSE)
+@ 
+
+If the $\lambda$ is not provided, then it is estimated for the given
+$\theta$. It is like calling getLambda() with $g(\theta)$ as
+"gmat". The difference is that a ``gelfit'' object is returned. It is
+particularly usefull when we estimate restricted models in which the
+number of restriction is equal to the number of coefficients. It is
+use by \textit{confint} method for the confidence interval on the mean
+(see above):
+
+<<>>=
+specTest(evalGel(muModel, theta=4), type="LR")
+@ 
+
+The problem with the \textit{evalModel} is that not much effort is
+put on adjusting the parameters of the model. Above, it says that the
+degrees of freedom is 0. It is just not an estimation method. A proper
+estimation of the above would be done with \textit{modelFit}:
+
+<<>>=
+rmuModel <- restModel(muModel, R=matrix(1,1,1), rhs=4)
+specTest(gelFit(rmuModel))
+@ 
+
+In that case \textit{gelFit} is calling \textit{evalGel}. 
+
+\section{One function to fit them all: gel4} \label{sec:gelmodels-gel4}
+
+Most users will prefer to avoid going through the steps of building a
+model and fitting it. The gel4() function build the model, fit it and
+return the ``gelfit'' object. The arguments are similar to the ones
+described above for \textit{modelFit}, \textit{gelSolve} and
+gelModel(). 
+
+\begin{itemize}  
+  \item Arguments for the model: ``g'', ``x'', ``theta0'',
+    ``gelType'',''rhoFct'', ``vcov'', ``grad'', ``vcovOptions'',
+    ``centeredVcov'', and ``data''. See gelModel() above for
+    details. The additional arguments ``cstLHS'' and ``cstRHS'' are to
+    estimate restricted models. ``chstLHS'' is passed to
+    \textit{restModel} as ``R'' and ``cstRHS'' is passed as
+    ``rhs''. The default getType is "EL", and the default ``vcov'' is
+    "MDS"
+  \item Arguments for the estimation: ``lamSlv'', ``coefSlv'',
+    ``initTheta'', ``lControl'' and ``tControl''. The default coefSlv
+    is "optim", the default lamSlv is getLambda(), and the default
+    initTheta is "gmm". See \textit{solveGel} and \textit{modelFit}
+    above for more details.
+  \item The argument ``getVcov'' is passed to \textit{modelFit} as
+    vcov. Therefore, if it is set to TRUE, the covariance matrices are
+    computed.
+\end{itemize}
+
+We can estimate the models from Section \ref{sec:momentmodel} as follows.
+
+<<>>=
+fit <- gel4(y~x1+x2, ~x2+z1+z2, data=simData, vcov="iid", gelType="EL",
+             lControl=list(algo="Wu"))  
+print(fit, model=FALSE)
+@ 
+
+To change the initial values in the linear case, we have to provide it
+and set initTheta to "theta0". 
+
+<<>>=
+fit <- gel4(y~x1+x2, ~x2+z1+z2, data=simData, vcov="iid", gelType="EL",
+             lControl=list(algo="Wu"), theta0=c(1,1,0), initTheta="theta0")  
+coef(fit)
+@ 
+
+To estimate the model with the restiction $x1=x2$, we set $cstLHS$ as
+$R$ in the \textit{restModel} method:
+
+<<>>=
+fit <- gel4(y~x1+x2, ~x2+z1+z2, data=simData, vcov="iid", gelType="EL",
+             lControl=list(algo="Wu"), cstLHS="x2=x1")
+print(fit, model=FALSE)
+@ 
+
+
+For the formula type, a named theta0 is required for the same reason
+it is required in gelModel(). The names are used to locate the
+coefficients in the formulas.
+
+
+<<>>=
+theta0=c(mu=1,sig=1)
+x <- simData$x1
+dat <- data.frame(x=x, x2=x^2, x3=x^3, x4=x^4)
+gform <- list(x~mu,
+              x2~mu^2+sig, 
+              x3~mu^3+3*mu*sig,
+              x4~mu^4+6*mu^2*sig+3*sig^2)
+fit <- gel4(g=gform, gelType="EEL", theta0=theta0, vcov="MDS", data=dat)
+print(fit, model=FALSE)
+@ 
+
+For the function type, theta0 is required because the moment function
+is evaluated when the model is created. It is also the starting value
+if initTheta is set to "theta0". the argument x must be provided,
+because it is the second argument of the moment function
+
+<<>>=  
+fct <- function(theta, x) 
+   cbind(x-theta[1], (x-theta[1])^2-theta[2],
+          (x-theta[1])^3, (x-theta[1])^4-3*theta[2]^2)
+dfct <- function(theta, x)
+    {
+        m1 <- mean(x-theta[1])
+        m2 <- mean((x-theta[1])^2)
+        m3 <- mean((x-theta[1])^3)
+        matrix(c(-1, -2*m1, -3*m2, -4*m3, 
+                 0, -1, 0, -6*theta[2]), 4, 2)
+    }
+fit <- gel4(g=fct, x=simData$x3, theta0=c(1,1), grad=dfct, vcov="iid", gelType="ET")
+print(fit, model=FALSE)
+@ 
+
+The last type is non-linear models, which requires a named theta0 as
+for the formula type. 
+  
+<<>>= 
+theta0=c(b0=1, b1=0, b2=0)
+gform <- y~exp(b0+b1*x1+b2*x2)
+fit <- gel4(gform, ~z1+z2+z3+x2, theta0=theta0, vcov="MDS", data=simData,
+                 gelType="HD")
+print(fit, model=FALSE)
+@
+
+\section{GEL confidence intervals for the mean}
+
+The method \textit{confint} can also be used to construct confidence
+intervals for the mean, or confidence region for two means. In this
+current version of the package, the default values for the algorithms
+used to solve for $\lambda$ and $\theta$ cannot be modified. The first
+method is for ``numeric'' objects:
+
+<<>>=
+x2 <- simData$x2
+confint(x2, gelType="EL")
+print(confint(x2, gelType="EL", type="invLR"), digits=5)
+@
+
+Which can also be done using the method for ``data.frame'':
+
+<<>>=
+confint(simData, "x2", gelType="EL")
+@ 
+
+The arguments ``level'', ``fact'' and ``type'' are as for the method
+with ``gelfit'' signature. The ``parm'' is only used with
+``data.frame'' in which case, it is used to select one or two
+columns. The argument ``vcov'' is used to specify the type of data is
+stored in the object. The options are ``iid'', the default, or ``HAC''
+for weakly dependent processes.  
+
+For ``data.frame'' and two variables, an object of class ``mconfint''
+is created. The argument ``npoints'' is the number of points to use to
+construct the region. The arguments ``cores'' is for the number of
+cores to use with mclapply(). For Windows operating systems, it is set
+to 1. The following shows how to use the \textit{print} and
+\textit{plot} methods for that class. Here is an example which
+compares Wald and LR confidence regions. 
+
+<<>>=
+res <- confint(simData, c("x2","y"), npoints=20)
+res
+@ 
+
+The following is not run because it creates some misterious error when
+the package is checked. Beside that, it works perfectly. Try it.
+
+\begin{center}
+\begin{minipage}{.7\textwidth}
+<<fig.height=5, eval=FALSE>>=
+res2 <- confint(simData, c("x2","y"), type="invLR", npoints=20)
+c1 <- col2rgb("darkorange2")/255
+c1 <- rgb(c1[1],c1[2],c1[3],.5)
+c2 <- col2rgb("lightblue2")/255
+c2 <- rgb(c2[1],c2[2],c2[3],.5)
+plot(res, pch=20, bg=1, Pcol=c1, col=c1, density=10, ylim=c(3.5,6.5),
+     xlim=c(4.8,7.5))
+plot(res2, pch=20, bg=2, Pcol=c2, col=c2, density=10, add=TRUE)
+legend("topright", c("Wald","LR"), col=c(c1,c2), pch=20 , bty="n")
+@ 
+\end{minipage}
+\end{center}
+
+The arguments ``main'', ``xlab'' ``ylab'', ``pch'', ``ylim'',
+``xlim'', ``Pcol'' (the color of the points) and ``bg'' are passed to
+plot.default(), and all other arguments are passed to polygon().
+
+\bibliography{empir}
+
+\appendix
+\section{Some extra codes}
+The following \textit{extract} is used with the ``texreg'' package of
+\cite{leifeld13} to produce nice latex tables.
+
+<<extract, message=FALSE, warning=FALSE>>=
+library(texreg)
+setMethod("extract", "gelfit", 
+          function(model, includeSpecTest=TRUE, 
+                   specTest=c("LR","LM","J"), include.nobs=TRUE, 
+                   include.obj.fcn=TRUE, ...)
+              {
+                  specTest <- match.arg(specTest)
+                  s <- summary(model, ...)
+                  wspecTest <- grep(specTest, rownames(s@specTest@test))
+                  spec <- modelDims(model@model)
+                  coefs <- s@coef
+                  names <- rownames(coefs)
+                  coef <- coefs[, 1]
+                  se <- coefs[, 2]
+                  pval <- coefs[, 4]
+                  n <- model@model@n
+                  gof <- numeric()
+                  gof.names <- character()
+                  gof.decimal <- logical()
+                  if (includeSpecTest) {
+                      if (spec$k == spec$q)
+                          {
+                              obj.fcn <- NA
+                              obj.pv <- NA
+                          } else {
+                              obj.fcn <- s@specTest@test[wspecTest,1]
+                              obj.pv <- s@specTest@test[wspecTest,3]
+                          }
+                      gof <- c(gof, obj.fcn, obj.pv)                      
+                      gof.names <- c(gof.names, 
+                                     paste(specTest,"-test Statistics", sep=""),
+                                     paste(specTest,"-test p-value", sep=""))
+                      gof.decimal <- c(gof.decimal, TRUE, TRUE)
+                  }
+                  if (include.nobs == TRUE) {
+                      gof <- c(gof, n)
+                      gof.names <- c(gof.names, "Num.\\ obs.")
+                      gof.decimal <- c(gof.decimal, FALSE)
+                  }
+                  tr <- createTexreg(coef.names = names, coef = coef, se = se, 
+                                     pvalues = pval, gof.names = gof.names, gof = gof, 
+                                     gof.decimal = gof.decimal)
+                  return(tr)
+              })
+@ 
+
+Here is an example
+
+<<results='asis'>>=
+fit1 <- gel4(y~x1, ~x2+x3+x4, data=simData)
+fit2 <- gel4(y~x1+x2, ~x2+x3+x4, data=simData)
+texreg(list(fit1,fit2), digits=4)
+@ 
+
+\end{document} 
+
