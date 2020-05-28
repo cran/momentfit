@@ -6,7 +6,7 @@
 \alias{evalMoment,formulaModel-method}
 \alias{evalMoment,regModel-method}
 \alias{evalMoment,sysModel-method}
-\alias{evalMoment,rslinearModel-method}
+\alias{evalMoment,rsysModel-method}
 \title{ ~~ Methods for Function \code{evalMoment} in Package \pkg{momentfit} ~~}
 \description{
 Method to evaluate the moment matrix at a given coefficient vector.
@@ -26,7 +26,7 @@ Method to evaluate the moment matrix at a given coefficient vector.
 \item{\code{signature(object = "sysModel")}}{
 }
 
-\item{\code{signature(object = "rslinearModel")}}{
+\item{\code{signature(object = "rsysModel")}}{
 }
 }}
 \examples{

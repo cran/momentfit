@@ -6,6 +6,7 @@
 \alias{coef,sgmmfit-method}
 \alias{coef,rlinearModel-method}
 \alias{coef,rslinearModel-method}
+\alias{coef,rsnonlinearModel-method}
 \alias{coef,rfunctionModel-method}
 \alias{coef,rformulaModel-method}
 \alias{coef,momentModel-method}
@@ -35,6 +36,10 @@ It gives the unrestricted representation of a restricted model. See examples.
 }
 
 \item{\code{signature(object = "rslinearModel")}}{
+It gives the unrestricted representation of a restricted model.  
+}
+
+\item{\code{signature(object = "rsnonlinearModel")}}{
 It gives the unrestricted representation of a restricted model.  
 }
 

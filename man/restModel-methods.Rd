@@ -5,6 +5,7 @@
 \alias{restModel,linearModel-method}
 \alias{restModel,formulaModel-method}
 \alias{restModel,slinearModel-method}
+\alias{restModel,snonlinearModel-method}
 \alias{restModel,nonlinearModel-method}
 \alias{restModel,functionModel-method}
 
@@ -18,6 +19,8 @@
 
 \S4method{restModel}{slinearModel}(object, R, rhs=NULL)
 
+\S4method{restModel}{snonlinearModel}(object, R, rhs=NULL)
+
 \S4method{restModel}{nonlinearModel}(object, R, rhs=NULL)
 
 \S4method{restModel}{formulaModel}(object, R, rhs=NULL)
@@ -26,7 +29,8 @@
 
 }
 \arguments{
-  \item{object}{An object of class \code{"momentModel"}.}
+  \item{object}{An object of class \code{"momentModel"} or
+    \code{"sysModel"}.}  
   \item{R}{Either a matrix or a vector of characters for
     linear models and a list of formulas for nonlinear models}
   \item{rhs}{The right hand side of the linear restrictions. It is
@@ -45,6 +49,10 @@ Method for object of class \code{linearModel}.
 
 \item{\code{signature(object = "slinearModel")}}{
 Method for object of class \code{slinearModel}.
+}
+
+\item{\code{signature(object = "snonlinearModel")}}{
+Method for object of class \code{snonlinearModel}.
 }
 
 \item{\code{signature(object = "nonlinearModel")}}{

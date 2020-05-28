@@ -5,28 +5,28 @@
 
 setMethod("print", "sysModel",
           function(x, ...)
-              {
-                  cat("System of Equations Model\n")
-                  cat("*************************\n")
-                  type <- gsub("s", "", is(x)[1])
-                  cat("Moment type: ", strsplit(type, "G")[[1]][1], "\n", 
-                      sep = "")
-                  cat("Covariance matrix: ", x@vcov, sep = "")
-                  if (x@vcov == "HAC") {
-                      option <- x@vcovOptions
-                      cat(" with ", option$kernel, " kernel and ")
-                      if (is.numeric(option$bw)) 
-                          cat("Fixed  bandwidth (", round(option$bw, 3), ")", sep = "")
-                      else cat(option$bw, " bandwidth", sep = "")
-                  }
-                  cat("\n")
-                  d <- modelDims(x)
-                  for (i in 1:length(d$eqnNames))
-                      cat(d$eqnNames[i], ": coefs=", d$k[i],
-                          ", moments=", d$q[i], ", number of Endogenous: ",
-                          sum(d$isEndo[[i]]), "\n", sep="")
-                  cat("Sample size: ", d$n, "\n")
-              })
+          {
+              cat("System of Equations Model\n")
+              cat("*************************\n")
+              type <- gsub("s", "", is(x)[1])
+              cat("Moment type: ", strsplit(type, "G")[[1]][1], "\n", 
+                  sep = "")
+              cat("Covariance matrix: ", x@vcov, sep = "")
+              if (x@vcov == "HAC") {
+                  option <- x@vcovOptions
+                  cat(" with ", option$kernel, " kernel and ")
+                  if (is.numeric(option$bw)) 
+                      cat("Fixed  bandwidth (", round(option$bw, 3), ")", sep = "")
+                  else cat(option$bw, " bandwidth", sep = "")
+              }
+              cat("\n")
+              d <- modelDims(x)
+              for (i in 1:length(d$eqnNames))
+                  cat(d$eqnNames[i], ": coefs=", d$k[i],
+                      ", moments=", d$q[i], ", number of Endogenous: ",
+                      sum(d$isEndo[[i]]), "\n", sep="")
+              cat("Sample size: ", d$n, "\n")
+          })
 
 setMethod("show", "sysModel", function(object) print(object))
 
@@ -48,6 +48,72 @@ setMethod("modelDims", "snonlinearModel",
                    fRHS=object@fRHS, fLHS=object@fLHS, eqnNames=object@eqnNames,
                    isEndo=object@isEndo)
           })
+
+## setCoef
+## Used to validate and format the coefficient into a named list
+
+setMethod("setCoef", signature("sysModel"),
+          function(model, theta) {
+              spec <- modelDims(model)
+              k <- sum(spec$k)
+              if (!is.list(theta))
+              {
+                  if (length(theta) != k)
+                      stop(paste("Wrong number of coefficients (should be ",
+                                 k, ")", sep=""))
+                  if (!is.null(names(theta)))
+                  {
+                      parNames <- do.call("c", spec$parNames)                  
+                      if (any(duplicated(names(theta))))
+                          stop("Cannot have more than one coefficient with the same name")
+                      chk <- !(names(theta) %in% parNames)
+                      if (any(chk))
+                      {
+                          mes <- "The following coefficients have invalid name: "
+                          mes <- paste(mes, paste(names(theta)[chk], collapse=", ",
+                                                  sep=""), sep="")
+                          stop(mes)
+                      }
+                      theta <- theta[match(parNames, names(theta))]
+                  }
+                  theta <- .tetReshape(theta, spec$eqnNames, spec$parNames)
+              } else {
+                  if (length(theta) != length(spec$eqnNames))
+                      stop("Wrong number of equations")
+                  if (is.null(names(theta)))
+                  {
+                      names(theta) <- spec$eqnNames
+                  } else {
+                      if(!all(names(theta) %in% spec$eqnNames))
+                          stop("Wrong equation names")
+                      theta <- theta[match(spec$eqnNames,names(theta))]
+                  }
+                  chk <- sapply(1:length(theta), function(i) 
+                      length(theta[[i]]) == length(spec$parNames[[i]]))
+                  if (!all(chk))
+                  {
+                      mes <- "Wrong number of coefficients in the following equation: "
+                      mes <- paste(mes, paste(names(theta)[!chk], collapse=", ", sep=""),
+                                   sep="")
+                      stop(mes)
+                  }
+                  theta <- lapply(1:length(theta), function(i) {
+                      ti <- theta[[i]]
+                      if (is.null(names(ti)))
+                      {
+                          names(ti) <- spec$parNames[[i]]
+                      } else {                          
+                          if (!all(names(ti) %in% spec$parNames[[i]]))
+                              stop(paste("Wrong coefficient names in equation ",
+                                         names(theta)[i], sep=""))
+                          ti <- ti[match(spec$parNames[[i]], names(ti))]
+                      }
+                      ti})
+                  names(theta) <- spec$eqnNames
+              }
+              theta                                
+          })
+
 ## Subsetting '['
 
 setMethod("[", c("sysModel", "missing", "list"),
@@ -114,7 +180,7 @@ setMethod("[", c("snonlinearModel", "numeric", "missing"),
               if (length(x@q) > 1)
                   return(x)
               instF <- model.frame(x@instT[[1]], x@data)
-              varN <- c(all.vars(x@fLHS[[1]]), all.vars(x@fRHS))
+              varN <- c(all.vars(x@fLHS[[1]]), all.vars(x@fRHS[[1]]))
               varN <- varN[!(varN%in%names(x@theta0[[1]]))]
               modelF <- x@data[,varN, drop=FALSE]
               new("nonlinearModel", instF=instF, modelF=modelF, q=x@q[[1]],
@@ -122,7 +188,7 @@ setMethod("[", c("snonlinearModel", "numeric", "missing"),
                   k=x@k[[1]], parNames=x@parNames[[1]], momNames=x@momNames[[1]],
                   vcov=x@vcov, n=spec$n,vcovOptions=x@vcovOptions,
                   centeredVcov=x@centeredVcov, varNames=x@varNames[[1]],
-                  isEndo=x@isEndo[[1]], survOptions=x@survOptions, smooth=)
+                  isEndo=x@isEndo[[1]], survOptions=x@survOptions, smooth=FALSE)
           })
 
 
@@ -478,14 +544,31 @@ setMethod("evalWeights", "sysModel",
 
 setMethod("evalGmmObj", signature("sysModel", "list", "sysMomentWeights"),
           function(object, theta, wObj, ...)
-              {
-                  gt <- evalMoment(object, theta)
-                  gt <- lapply(gt, function(g) colMeans(g))
-                  gt <- do.call("c", gt)
-                  n <- object@n
-                  obj <- quadra(wObj, gt)
-                  n*obj
-              })
+          {
+              gt <- evalMoment(object, theta)
+              gt <- lapply(gt, function(g) colMeans(g))
+              gt <- do.call("c", gt)
+              n <- object@n
+              obj <- quadra(wObj, gt)
+              n*obj
+          })
+
+## evalGmm
+### evaluate at a fixed parameter: no estimation
+
+setMethod("evalGmm", signature("sysModel"),
+          function(model, theta, wObj=NULL, ...) {
+              Call <- try(match.call(call=sys.call(sys.parent())), silent=TRUE)
+              if (inherits(Call,"try-error"))
+                  Call <- NULL
+              theta <- setCoef(model, theta)
+              if (is.null(wObj))
+                  wObj <- evalWeights(model, theta)
+              new("sgmmfit", theta=theta, convergence=NULL, convIter=NULL,
+                  call=Call, type="eval", wObj=wObj, niter=0L, efficientGmm=FALSE,
+                  model=model)
+          })
+
 
 ## modelResponse
 
@@ -499,8 +582,10 @@ setMethod("modelResponse", signature("slinearModel"),
 
 ## solveGMM
 
-.GListToMat <- function(G)
+.GListToMat <- function(G, full=FALSE)
 {
+    if (full)
+        return(do.call(rbind, G))
     dimG <- sapply(G, dim)
     Gmat <- matrix(0, sum(dimG[1,]), sum(dimG[2,]))
     r1 <- 1
@@ -560,10 +645,10 @@ setMethod("solveGmm", c("slinearModel", "sysMomentWeights"),
 setMethod("solveGmm", signature("snonlinearModel", "sysMomentWeights"),
           function (object, wObj, theta0 = NULL, ...) 
           {
-              if (is.null(theta0)) 
+              if (is.null(theta0))                  
                   theta0 <- modelDims(object)$theta0
-              if (!is.list(theta0))
-                  stop("theta0 must be a list of vectors")
+              else
+                  theta0 <- setCoef(object, theta0)
               g <- function(theta, wObj, object){
                   spec <- modelDims(object)
                   theta <- .tetReshape(theta, object@eqnNames, spec$parNames)
@@ -577,7 +662,8 @@ setMethod("solveGmm", signature("snonlinearModel", "sysMomentWeights"),
                   n <- nrow(gt)
                   gt <- colMeans(gt)
                   G <- evalDMoment(object, theta)
-                  G <- .GListToMat(G)
+                  full <- all(sapply(1:length(G), function(i) ncol(G[[i]])==sum(spec$k)))
+                  G <- .GListToMat(G, full)
                   obj <- 2 * n * quadra(wObj, G, gt)
                   obj
               }
@@ -585,7 +671,7 @@ setMethod("solveGmm", signature("snonlinearModel", "sysMomentWeights"),
               theta0 <- .tetReshape(theta0, object@eqnNames, spec$parNames)
               res <- optim(par = theta0, fn = g, gr = dg, method = "BFGS", 
                            object = object, wObj = wObj, ...)
-              theta <- .tetReshape(res$par, object@eqnNames, object@parNames)
+              theta <- .tetReshape(res$par, spec$eqnNames, spec$parNames)
               list(theta = theta, convergence = res$convergence)
     })
 
@@ -610,7 +696,7 @@ setMethod("vcov", signature("sysModel"),
                           {
                               w <- kronecker(Sigma, crossprod(Z[[1]])/nrow(e))
                           } else {
-                              Z <- crossprod(Z)/nrow(e)
+                              Z <- crossprod(do.call(cbind,Z))/nrow(e)
                               w <- .SigmaZZ(Z, Sigma, q)
                           }
                   } else {

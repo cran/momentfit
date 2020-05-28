@@ -7,6 +7,7 @@
 \alias{model.matrix,rlinearModel-method}
 \alias{model.matrix,slinearModel-method}
 \alias{model.matrix,rslinearModel-method}
+\alias{model.matrix,rsnonlinearModel-method}
 \alias{model.matrix,snonlinearModel-method}
 \title{ ~~ Methods for Function \code{model.matrix} in Package \pkg{stats} ~~}
 \description{
@@ -24,6 +25,8 @@ type=c("regressors","instruments"))
 \S4method{model.matrix}{slinearModel}(object,
 type=c("regressors","instruments"))
 \S4method{model.matrix}{rslinearModel}(object,
+type=c("regressors","instruments"))
+\S4method{model.matrix}{rsnonlinearModel}(object,
 type=c("regressors","instruments"))
 \S4method{model.matrix}{snonlinearModel}(object,
 type=c("regressors","instruments"))
@@ -57,6 +60,10 @@ Nonlinear models with not restrictions.
 
  \item{\code{signature(object = "rslinearModel")}}{
    System of linear equations with restrictions. 
+ }
+
+ \item{\code{signature(object = "rsnonlinearModel")}}{
+   System of nonlinear equations with restrictions. 
  }
  
  \item{\code{signature(object = "snonlinearModel")}}{

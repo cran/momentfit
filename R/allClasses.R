@@ -320,6 +320,51 @@ setAs("slinearModel", "linearModel",
                           centeredVcov=from@centeredVcov, data=dat)
       })
 
+setAs("slinearModel", "snonlinearModel",
+      function(from) {
+          spec <- modelDims(from)
+          X <- model.matrix(from)
+          theta0 <- rep(1,sum(spec$k))         
+          names(theta0) <- paste("theta", 1:sum(spec$k), sep="")
+          eqNames <- paste("Eqn", 1:length(X), sep="")
+          xk <- c(0,cumsum(from@k))
+          theta0 <- lapply(1:length(X), function(i) theta0[(1+xk[i]):(xk[i+1])])
+          parNames <- lapply(theta0, names)
+          rhs <- lapply(1:length(X), function(i){
+              n <- paste("*", colnames(X[[i]]), sep="")
+              n[n=="*(Intercept)"] <- ""
+              n <- paste(names(theta0[[i]]), n, sep="")
+              parse(text=paste(n, collapse="+", sep=""))
+              })
+          lhs <- lapply(1:length(X), function(i)
+              parse(text=from@modelT[[i]][[2]]))
+          varNames <- lapply(1:length(lhs), function(i) {
+              v1 <- all.vars(lhs[[i]])
+              v2 <- all.vars(rhs[[i]])
+              v2 <- v2[!(v2%in%names(theta0[[i]]))]
+              c(v1,v2)})
+              
+          Y <- do.call(cbind, modelResponse(from))
+          colnames(Y) <- sapply(lhs, all.vars)
+          X <- do.call(cbind, X)
+          X <- X[,!duplicated(colnames(X))]
+          X <- X[,colnames(X)!="(Intercept)"]
+          Z <- do.call(cbind, model.matrix(from, type="instruments"))
+          Z <- Z[,!duplicated(colnames(Z))]
+          Z <- Z[,colnames(Z) != "(Intercept)"]
+          dat <- cbind(X, Y[,!(colnames(Y) %in% colnames(X))])
+          dat <- cbind(dat, Z[,!(colnames(Z)%in%colnames(dat))])
+          new("snonlinearModel", data=as.data.frame(dat), instT=from@instT,
+              vcov=from@vcov, theta0=theta0, n=spec$n, q=spec$q,k=spec$k,
+              parNames=parNames, momNames=from@momNames, fRHS=rhs,
+              fLHS=lhs, eqnNames=eqNames, vcovOptions=from@vcovOptions,
+              centeredVcov=from@centeredVcov, sameMom=from@sameMom,
+              SUR=from@SUR, varNames=varNames, isEndo=from@isEndo,
+              omit=from@omit, survOptions=from@survOptions,
+              sSpec=from@sSpec, smooth=from@smooth)
+      })
+
+
 setAs("sysMomentWeights", "momentWeights",
       function(from) {
           w <- quadra(from)

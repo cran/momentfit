@@ -19,6 +19,7 @@
 \alias{[,sysModel,missing,list-method}
 \alias{[,snonlinearModel,numeric,missing-method}
 \alias{[,slinearModel,numeric,missing-method}
+\alias{[,rsnonlinearModel,numeric,missing-method}
 \alias{[,rslinearModel,numeric,missing-method}
 \alias{[,sysModel,numeric,list-method}
 \alias{[,sysModel,missing,missing-method}
@@ -75,6 +76,11 @@ second argument. See example.
 }
 
 \item{\code{signature(x = "rslinearModel", i = "numeric", j="missing")}}{
+  It is only use to select one equation when no cross-equation
+  restrictions are imposed. Only one equation can be selected. 
+}
+
+\item{\code{signature(x = "rsnonlinearModel", i = "numeric", j="missing")}}{
   It is only use to select one equation when no cross-equation
   restrictions are imposed. Only one equation can be selected. 
 }

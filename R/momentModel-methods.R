@@ -64,6 +64,32 @@ setMethod("print", "momentModel",
 
 setMethod("show", "momentModel", function(object) print(object))
 
+### setCoef #######
+### A generic for setting and validating the format of the coefficient
+
+setGeneric("setCoef", function(model, ...) standardGeneric("setCoef"))
+
+setMethod("setCoef", "momentModel",
+          function(model, theta) {
+              spec <- modelDims(model)
+              if (length(theta) != length(spec$parNames))
+                  stop(paste("Wrong number of coefficients (should be ",
+                             spec$k, ")", sep=""))
+              if (!is.null(names(theta)))
+              {
+                  chk <- !(names(theta)%in%spec$parNames)
+                  if (any(chk))
+                  {
+                      mess <- paste("The following theta names are invalid: ",
+                                    paste(names(theta)[chk], collapse=", ", sep=""),
+                                    sep="")
+                      stop(mess)
+                  }
+                  theta <- theta[match(spec$parNames, names(theta))]
+              } else {
+                  names(theta) <- spec$parNames
+              }
+              theta})
 
 ##### coef  ########
 ### For this, it only attach the names to theta
@@ -142,14 +168,7 @@ setMethod("residuals", signature("nonlinearModel"),
           function(object, theta)
               {
                   res <- modelDims(object)
-                  nt <- names(theta)
-                  nt0 <- names(res$theta0)
-                  if (length(theta) != length(nt0))
-                      stop("The length of theta is not equal to the number of parameters")
-                  if (is.null(nt))
-                      stop("theta must be a named vector")
-                  if (!all(nt%in%nt0 & nt0%in%nt))
-                      stop("names in theta dont match parameter names")
+                  theta <- setCoef(object, theta)
                   varList <- c(as.list(theta), as.list(object@modelF))
                   if (!is.null(res$fLHS))
                       {
@@ -181,7 +200,7 @@ setMethod("evalMoment", signature("regModel"),
 
 setMethod("evalMoment", signature("functionModel"),
           function(object, theta) {
-              theta <- coef(object, theta)
+              theta <- setCoef(object, theta)
               gt <- object@fct(theta, object@X)
               if (!is.null(sub <- attr(object@X, "subset")))
                   gt <- gt[,sub]
@@ -193,14 +212,7 @@ setMethod("evalMoment", signature("functionModel"),
 setMethod("evalMoment", signature("formulaModel"),
           function(object, theta) {
               res <- modelDims(object)
-              nt <- names(theta)
-              nt0 <- names(res$theta0)
-              if (length(theta) != length(nt0))
-                  stop("The length of theta is not equal to the number of parameters")
-              if (is.null(nt))
-                  stop("theta must be a named vector")
-              if (!all(nt%in%nt0 & nt0%in%nt))
-                  stop("names in theta dont match parameter names")
+              theta <- setCoef(object, theta)
               varList <- c(as.list(theta), as.list(object@modelF))
               gt <- sapply(1:res$q, function(i) {
                   if (!is.null(res$fLHS[[i]]))
@@ -237,19 +249,11 @@ setMethod("Dresiduals", signature("linearModel"),
 
 setMethod("Dresiduals", signature("nonlinearModel"),
           function(object, theta) {
-              theta <- coef(object, theta)
+              theta <- setCoef(object, theta)
               res <- modelDims(object)
-              nt <- names(theta)
-              nt0 <- names(res$theta0)
-              if (length(theta) != length(nt0))
-                  stop("The length of theta is not equal to the number of parameters")
-              if (is.null(nt))
-                  stop("theta must be a named vector")
-              if (!all(nt%in%nt0 & nt0%in%nt))
-                  stop("names in theta dont match parameter names")
               varList <- c(as.list(theta), as.list(object@modelF))
               De <- numeric()
-              for (i in nt)
+              for (i in names(theta))
                   {
                       if (!is.null(res$fLHS))
                           d <- eval(D(res$fLHS, i), varList)      
@@ -257,6 +261,7 @@ setMethod("Dresiduals", signature("nonlinearModel"),
                           d <- 0
                       De <-  cbind(De, d-matrix(eval(D(res$fRHS, i), varList),res$n,1))
                   }
+              colnames(De) <- object@parNames
               De
           })
 
@@ -349,6 +354,7 @@ setMethod("evalDMoment", signature("functionModel"),
           function(object, theta, impProb=NULL, lambda=NULL)
           {
               spec <- modelDims(object)
+              theta <- setCoef(object, theta)
               if (object@smooth && !is.null(object@dfct))
               {
                   object@dfct <- NULL
@@ -405,18 +411,10 @@ setMethod("evalDMoment", signature("functionModel"),
 setMethod("evalDMoment", signature("formulaModel"),
           function(object, theta, impProb=NULL, lambda=NULL)
           {
-              theta <- coef(object, theta)
+              theta <- setCoef(object, theta)
               spec <- modelDims(object)              
-              nt <- names(theta)
-              nt0 <- names(spec$theta0)
               if (is.null(impProb))
                   impProb <- 1/spec$n
-              if (length(theta) != length(nt0))
-                  stop("The length of theta is not equal to the number of parameters")
-              if (is.null(nt))
-                  stop("theta must be a named vector")
-              if (!all(nt%in%nt0 & nt0%in%nt))
-                  stop("names in theta dont match parameter names")
               varList <- c(as.list(theta), as.list(object@modelF))
               if (!is.null(lambda))
               {
@@ -466,7 +464,7 @@ setMethod("evalDMoment", signature("formulaModel"),
                   nG <- list(spec$momNames, spec$parNames)
               }                  
               G <- numeric()
-              for (i in nt)
+              for (i in names(theta))
               {
                   lhs <- f(i, lambda, spec$fLHS)
                   rhs <- f(i, lambda, spec$fRHS)
@@ -740,7 +738,9 @@ setMethod("momentStrength", signature("linearModel"),
                                           OLS=vcov(resu),
                                           HC=vcovHC(resu,"HC1"),
                                           HAC=vcovHAC(resu),
-                                          CL=do.call(vcovCL,c(object@vcovOptions, x=resu)))
+                                          CL=do.call(vcovCL,c(object@vcovOptions,
+                                                              list(x=resu)))
+                                          )
                               v <- v[!exoInst,!exoInst]
                               b <- coef(resu)[!exoInst]
                               f <- b%*%solve(v, b)/df1
@@ -1060,16 +1060,7 @@ setMethod("evalGmm", signature("momentModel"),
               Call <- try(match.call(call=sys.call(sys.parent())), silent=TRUE)
               if (inherits(Call,"try-error"))
                   Call <- NULL
-              if (!is.null(names(theta)))
-                  {
-                      if (!all(names(theta) %in% spec$parNames))
-                          stop("You provided a named theta with wrong names")
-                      theta <- theta[match(spec$parNames, names(theta))]
-                  } else {
-                      if (class(model) %in% c("formulaModel","nonlinearModel"))
-                          stop("To evaluate nonlinear models, theta must be named")
-                      names(theta) <- spec$parNames
-                  }
+              theta <- setCoef(model, theta)
               if (is.null(wObj))
                   wObj <- evalWeights(model, theta)
               new("gmmfit", theta=theta, convergence=NULL, convIter=NULL,
@@ -1331,16 +1322,7 @@ setMethod("evalGel", signature("momentModel"),
               if (inherits(Call,"try-error"))
                   Call <- NULL
               spec <- modelDims(model)
-              if (!is.null(names(theta)))
-              {
-                  if (!all(names(theta) %in% spec$parNames))
-                      stop("You provided a named theta with wrong names")
-                  theta <- theta[match(spec$parNames, names(theta))]
-              } else {
-                  if (class(model) %in% c("formulaGel","nonlinearGel", "formulaGel"))
-                      stop("To evaluate nonlinear models, theta must be named")
-                  names(theta) <- spec$parNames
-              }
+              theta <- setCoef(model, theta)
               type <- paste("Eval-", gelType, sep="")
               if (is.null(lambda))
               {

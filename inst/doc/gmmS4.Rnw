@@ -472,6 +472,24 @@ where $b_n$ is the bandwidth.
 \subsection{Methods for momentModel Classes} \label{sec:momentmodel-methods}
 
 \begin{itemize}
+\item \textit{setCoef}: A method to validate and to format the vector
+  of coefficients. It is used by most methods to verify if the vector
+  is correctly specified and to re-format it if needed. Is it
+  particularly useful to create a vector of initial values. For
+  example, if we want to create a named vector with valid names for
+  the nonlinear ``mod2'' model, we can proceed this way:
+  
+<<>>=
+setCoef(mod2, 1:3)
+@   
+
+The method also reorders the vector to match the order in the model
+object:
+
+<<>>=
+setCoef(mod2, c(theta1=1, theta2=1, theta0=2))
+@ 
+
 \item \textit{residuals}: Only for ``linearModel'' and ``nonlinearModel'',
   it returns $\epsilon(\theta)$:
 
@@ -481,13 +499,16 @@ e1 <- residuals(mod1, c(1,2,3))
 e2 <- residuals(mod2, theta0)
 @ 
 
+It returns errors if the names are invalid or the number of
+coefficients is wrong.
+
 \item \textit{Dresiduals}: Only for ``linearModel'' and
   ``nonlinearModel'', it returns the $n\times k$ matrix
   $d\epsilon(\theta)/d\theta$:
 
 <<>>=
-theta0 <- c(theta0=1, theta1=1, theta2=2)
 e1 <- Dresiduals(mod1)
+theta0 <- setCoef(mod2, c(1,1,2))
 e2 <- Dresiduals(mod2, theta0)
 @     
 
@@ -564,6 +585,8 @@ gt <- evalMoment(mod1, 1:3)
   above):
 <<>>=
 theta0 <- c(theta0=.1, theta1=1, theta2=-2)
+## or ##
+theta0 <- setCoef(mod2, c(.1,1,-2))
 evalDMoment(mod2, theta0)
 @ 
 
@@ -706,6 +729,13 @@ to 1.5 and 0.5, then the unrestricted version is
 coef(R2.mod1, c(1.5,.5))
 @ 
 
+It is possible to verify that the length or names are valid by using
+the \textit{setCoef} method:
+
+<<>>=
+setCoef(R2.mod1, c(1.5,.5))
+@ 
+
 Notice that any restricted class object contains its unrestricted
 version. For example, ``rlinearModel'' is a class that contains a
 ``linearModel'' class object plus a few additional slots. We can
@@ -736,7 +766,8 @@ example:
 R1 <- c("theta1=theta2^2")
 R1.mod2 <- restModel(mod2, R1)
 evalDMoment(mod2, c(theta0=1, theta1=1, theta2=1))
-evalDMoment(R1.mod2, c(theta0=1, theta2=1))
+## with setCoef:
+evalDMoment(R1.mod2, setCoef(R1.mod2, c(1,1)))
 @ 
 
 Every method uses the method \textit{modelDims} to extract the
@@ -2002,6 +2033,19 @@ The methods are very similar to the ones described above for
 ``momentModel'' classes. Here, we briefly describe the difference.
 
 \begin{itemize}
+\item \textit{setCoef}: As for single-equation models, it validate and
+  organize the list of coefficients. It is very helpful for large
+  systems.  In the ``smod1'' system, we have 11 coefficients. We can
+  create the list using a simple vector:
+
+<<>>=
+setCoef(smod1, 1:11)
+@ 
+
+If it is a named list of names vectors, the method match the order of
+the model. Or course, it also make sure the dimensions and names are
+valid.
+
 \item \textit{[}: The method has two arguments. The first is an vector
   of integers to select the equations, and the second is a list of
   integers to select the instruments in each of the selected
@@ -2078,14 +2122,19 @@ Notice that the equations are merged to the first argument. It the
 \subsection{Restricted models}\label{sec:smomentmodel-rest}
 
 As for the single equation case, we can create an object with
-restrictions imposed on the coefficients. For now, only linear
-restrictions on linear models are implemented in the package. The
-class is ``rslinearModel'' and it contains its unrestricted
-counterpart. Restrictions are imposed in the same way they are imposed
-in the single equation case. We can impose cross-equation
-restrictions, or simply impose restrictions equation by equation. The
-method \textit{restModel} is used to create the restricted models. In
-the following example, restrictions are imposed equation by equation.
+restrictions imposed on the coefficients. It is possible to impose
+linear and nonlinear restrictions on systems of linear and nonlinear
+equations. The classes are ``rslinearModel'' and ``rsnonlinearModel'',
+and they contain their unrestricted counterparts. Restrictions are
+imposed differently on linear and nonlinear models. For systems of
+linear equations it is like imposing restrictions on single equation
+models. We can impose cross-equation restrictions, or simply impose
+restrictions equation by equation. 
+
+\subsubsection*{System of linear equations}
+The method \textit{restModel} is used to create the restricted
+models. In the following example, restrictions are imposed equation by
+equation.
 
 <<>>=
 R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
@@ -2093,12 +2142,11 @@ rsmod1 <- restModel(smod1, R1)
 rsmod1
 @
 
-For now, $R$ is a list of the same length as the number of
-equations. For equations with no restrictions, an empty character
-vector must be provided. (Eventually, we will allow $R$ to be a named
-list with the names being the equation names.) For cross-equation
-restrictions, we need to add to the coefficient names the equation
-names.
+$R$ is a list of the same length as the number of equations. For
+equations with no restrictions, an empty character vector must be
+provided. (Eventually, we will allow $R$ to be a named list with the
+names being the equation names.) For cross-equation restrictions, we
+need to add to the coefficient names the equation names.
 
 <<>>=
 R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
@@ -2187,9 +2235,50 @@ The \textit{"["} method works the same way. We can therefore get the
 rsmod1[1]
 @ 
 
+\subsubsection*{Systems of nonlinear equations}
+
+It is easier to impose restrictions on nonlinear models because the
+names of the coefficients are different across equations. We can start
+by converting the above system of linear equations to an
+``snonlinearModel'' object:
+
+<<>>=
+nsmod <- as(smod1, "snonlinearModel")
+nsmod
+@ 
+
+This conversion method is particularly useful to impose nonlinear
+restrictions on the coefficients of linear models. We use it here to
+illustrate how to impose restrictions. The parameters of the model are:
+
+<<>>=
+nsmod@parNames
+@ 
+
+We can use the \textit{setCoef} method to create valid vectors:
+
+<<>>=
+setCoef(nsmod, 1:11)
+@ 
+
+Creating a restricted model with and without cross-equation
+restrictions is identical. The restricted models are created using the
+\textit{restModel} method, an R is either a vector of characters or a
+list of formulas. There is no need to specify the equation names
+because the coefficient names are unique. The following are two types
+of restrictions, the first being equation by equation and the second
+involving a cross-equation restriction.
+
+<<>>=
+R1 <- c("theta1=-12*theta2","theta9=0.8", "theta11=0.3")
+R2<- c("theta1=1", "theta6=theta10")
+(rnsmod1 <- restModel(nsmod, R1))
+(rnsmod2 <- restModel(nsmod, R2))
+@ 
+
 \subsection{Genelarized method of moments}\label{sec:sysgmm}
 
-\subsubsection{A class for GMM weights}\label{sec:smomentmodel-weights}
+\subsubsection{A class for moment weights}\label{sec:smomentmodel-weights}
 
 As for the single equation case, the weighting matrices must have a
 particular class in order to work with all model fitting methods. The
@@ -2343,6 +2432,34 @@ Again, we can recover the equation by equation coefficients:
 coef(rsmod1, theta1)
 @ 
 
+The method also applies to restricted system of nonlinear equations
+(with and without cross-equation restrictions). It is important to
+provide good starting values to the minimization algorithm if we want
+the method to converge to the global minimum. In the following, a
+vector of 0's is used to get the first-step estimate, but in practice
+it is recommended to find a better strategy. The starting values for
+the second-step estimate is the first-step estimate. It is the ideal
+starting values provided that the first-step method converged.
+
+<<>>=
+### Without cross-equation restrictions
+wObj1 <- evalWeights(rnsmod1, w="ident")
+theta0 <- solveGmm(rnsmod1, wObj1, theta0=rep(0, 8))$theta
+wObj2 <- evalWeights(rnsmod1, theta=theta0)
+theta1 <- solveGmm(rnsmod1, wObj2, theta0=theta0)$theta
+### Verify that the restrictions are correctly imposed:
+printRestrict(rnsmod1)
+coef(rnsmod1, theta1)
+### With cross-equation restrictions
+wObj1 <- evalWeights(rnsmod2, w="ident")
+theta0 <- solveGmm(rnsmod2, wObj1, theta0=rep(0, 9))$theta
+wObj2 <- evalWeights(rnsmod2, theta=theta0)
+theta1 <- solveGmm(rnsmod2, wObj2, theta0=theta0)$theta
+### Verify that the restrictions are correctly imposed:
+printRestrict(rnsmod2)
+coef(rnsmod2, theta1)
+@ 
+
 \subsubsection{The \textit{gmmFit} method for system of equations}\label{sec:smomentmodel-gmmfit}
 
 This is the main algorithm to obtain GMM estimates of systems of
@@ -2422,6 +2539,18 @@ gmmFit(rsmod1)@theta
 R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
 rsmod1<- restModel(smod1, R2)
 gmmFit(rsmod1)@theta
+@ 
+
+The following are the estimation of the two above restricted systems
+of nonlinear equations (the vector of 0's is used again as starting
+values because the initial values included in the model object does a
+poor job):
+
+<<>>=
+theta0 <- setCoef(rnsmod1, rep(0,8))
+gmmFit(rnsmod1, theta0=theta0)@theta
+theta0 <- setCoef(rnsmod2, rep(0,9))
+gmmFit(rnsmod2, theta0=theta0)@theta
 @ 
 
 \subsubsection{The \textit{tsls} and \textit{ThreeSLS} methods}
@@ -2576,6 +2705,32 @@ res2.r <- gmmFit(rsmod1)
 hypothesisTest(res.u, res2.r, type="LR")
 @ 
 
+For the nonlinear model, it works in a very similar way. First we
+estimate the unrestricted model and the two restricted ones.
+
+<<>>=
+R1 <- c("theta1=-12*theta2","theta9=0.8", "theta11=0.3")
+R2<- c("theta1=1", "theta6=theta10")
+rnsmod1 <- restModel(nsmod, R1)
+rnsmod2 <- restModel(nsmod, R2)
+theta0 <- setCoef(nsmod, rep(0,11))
+fit <- gmmFit(nsmod, theta0=theta0)
+theta0 <- setCoef(rnsmod1, rep(0,8))
+rfit1 <- gmmFit(rnsmod1, theta0=theta0)
+theta0 <- setCoef(rnsmod2, rep(0,9))
+rfit2 <- gmmFit(rnsmod2, theta0=theta0)
+@ 
+
+Then, we test the two restrictions using the different options:
+
+<<>>=
+hypothesisTest(object.u=fit, R=R1)
+hypothesisTest(object.u=fit, object.r=rfit1, type="LR")
+hypothesisTest(object.u=fit, object.r=rfit1, type="LM")
+hypothesisTest(object.u=fit, R=R2)
+hypothesisTest(object.u=fit, object.r=rfit2, type="LR")
+hypothesisTest(object.u=fit, object.r=rfit2, type="LM")
+@ 
 
 \end{itemize}
 
@@ -2614,6 +2769,25 @@ To estimate a restricted model, simply add the restrictions
 R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
 res <- gmm4(g, h, data=simData, cstLHS=R1) #two-step by default
 res
+@ 
+
+It is the same for nonlinear systems. Notice that theta0 that needs to
+be provided is for the unrestricted model even if impose
+restriction. \textit{gmm4} first creates the unrestricted model with
+theta0 and use \textit{restModel} after to created the restricted
+model.
+<<>>=
+h <- list(~z1+z2+z3, ~x3+z1+z2+z3+z4, ~x3+x4+z1+z2+z3)
+nlg <- list(Supply=y1~theta0+theta1*x1+theta2*z2,
+            Demand1=y2~alpha0+alpha1*x1+alpha2*x2+alpha3*x3,
+            Demand2=y3~beta0+beta1*x3+beta2*x4+beta3*z1)
+theta0 <- list(c(theta0=0,theta1=0,theta2=0),
+               c(alpha0=0,alpha1=0,alpha2=0, alpha3=0),
+               c(beta0=0,beta1=0,beta2=0,beta3=0))
+fit <- gmm4(nlg, h, theta0,data=simData)
+## the restricted estimation (:
+R2<- c("theta1=1", "alpha1=beta2")
+fit2 <- gmm4(nlg, h, theta0,data=simData, cstLHS=R2)
 @ 
 
 \subsection{Textbooks Applications} \label{sec:smomentmodel-app}

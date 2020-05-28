@@ -6,6 +6,7 @@
 \alias{getRestrict,rlinearModel-method}
 \alias{getRestrict,rformulaModel-method}
 \alias{getRestrict,rslinearModel-method}
+\alias{getRestrict,rsnonlinearModel-method}
 \alias{getRestrict,sysModel-method}
 \alias{getRestrict,rnonlinearModel-method}
 \alias{getRestrict,rfunctionModel-method}
@@ -18,6 +19,8 @@ contraints. Those matrices are used to perform hypothesis tests.
 \S4method{getRestrict}{rlinearModel}(object, theta)
 
 \S4method{getRestrict}{rslinearModel}(object, theta)
+
+\S4method{getRestrict}{rsnonlinearModel}(object, theta)
 
 \S4method{getRestrict}{rnonlinearModel}(object, theta)
 
@@ -63,6 +66,11 @@ contraints. Those matrices are used to perform hypothesis tests.
 }
 
 \item{\code{signature(object = "rslinearModel")}}{
+  The restriction matrices are evaluated at the coefficient vector
+  \code{theta} of the unrestricted representation.
+}
+
+\item{\code{signature(object = "rsnonlinearModel")}}{
   The restriction matrices are evaluated at the coefficient vector
   \code{theta} of the unrestricted representation.
 }

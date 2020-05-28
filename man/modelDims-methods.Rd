@@ -4,6 +4,7 @@
 \alias{modelDims-methods}
 \alias{modelDims,linearModel-method}
 \alias{modelDims,rslinearModel-method}
+\alias{modelDims,rsnonlinearModel-method}
 \alias{modelDims,sysMomentModel-method}
 \alias{modelDims,slinearModel-method}
 \alias{modelDims,snonlinearModel-method}
@@ -51,6 +52,9 @@ when restrictions have been imposed on coefficients.
 }
 
 \item{\code{signature(object = "rslinearModel")}}{
+}
+
+\item{\code{signature(object = "rsnonlinearModel")}}{
 }
 
 \item{\code{signature(object = "snonlineatModel")}}{

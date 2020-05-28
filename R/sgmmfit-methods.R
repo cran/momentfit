@@ -88,7 +88,7 @@ setMethod("vcov", "sgmmfit",
                       sandwich <- !object@efficientGmm
                   meat <- meatGmm(object, sandwich)
                   if (!sandwich) {
-                      vcov <- solve(meat)/object@model@n
+                      vcov <- solve(meat)/spec$n
                   } else {
                       if (all(spec$k == spec$q)) {
                           G <- evalDMoment(object@model, coef(object))
@@ -115,20 +115,22 @@ setMethod("vcov", "sgmmfit",
 
 setMethod("meatGmm", "sgmmfit",
           function(object, robust = FALSE) 
-              {
-                  G <- evalDMoment(object@model, coef(object))
-                  G <- .GListToMat(G)
-                  if (!robust) {
-                      wObj <- evalWeights(object@model, coef(object), "optimal")
-                      meat <- quadra(wObj, G)
-                  }  else {
-                      wObj <- object@wObj
-                      v <- vcov(object@model, coef(object))
-                      T1 <- quadra(wObj, v, G)
-                      meat <- quadra(wObj, G, T1)
-                  }
-                  meat
-              })
+          {
+              spec <- modelDims(object@model)
+              G <- evalDMoment(object@model, coef(object))
+              full <- all(sapply(1:length(G), function(i) ncol(G[[i]])==sum(spec$k)))
+              G <- .GListToMat(G, full)
+              if (!robust) {
+                  wObj <- evalWeights(object@model, coef(object), "optimal")
+                  meat <- quadra(wObj, G)
+              }  else {
+                  wObj <- object@wObj
+                  v <- vcov(object@model, coef(object))
+                  T1 <- quadra(wObj, v, G)
+                  meat <- quadra(wObj, G, T1)
+              }
+              meat
+          })
 
 ## bread
 
@@ -199,8 +201,11 @@ setMethod("summary","sgmmfit",
               stest <- specTest(object, df.adj = df.adj)
               vcovType <- switch(object@model@vcov, HAC = "HAC", iid = "OLS", 
                                  MDS = "HC")
-              strength <- lapply(1:neqn, function(i)
-                  momentStrength(object@model[i], par[[i]], vcovType))              
+              strength <- lapply(1:neqn, function(i) {
+                  if (inherits(object@model, "slinearModel"))
+                      momentStrength(object@model[i], par[[i]], vcovType)
+                  else
+                      NULL})             
               wSpec <- object@wObj@wSpec
               ans <- new("summarySysGmm", coef = coef, type = object@type, 
                          specTest = stest, strength = strength, model = object@model, 

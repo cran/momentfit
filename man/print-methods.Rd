@@ -10,6 +10,7 @@
 \alias{print,sgmmfit-method}
 \alias{print,rlinearModel-method}
 \alias{print,rslinearModel-method}
+\alias{print,rsnonlinearModel-method}
 \alias{print,rfunctionModel-method}
 \alias{print,rformulaModel-method}
 \alias{print,rnonlinearModel-method}
@@ -72,6 +73,9 @@ Print method for all \code{"momentModel"}, \code{"gmmfit"},
 }
 
 \item{\code{signature(x = "rslinearModel")}}{
+}
+
+\item{\code{signature(x = "rsnonlinearModel")}}{
 }
 
 \item{\code{signature(x = "rnonlinearModel")}}{

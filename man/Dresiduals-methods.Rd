@@ -5,6 +5,7 @@
 \alias{Dresiduals,linearModel-method}
 \alias{Dresiduals,nonlinearModel-method}
 \alias{Dresiduals,sysModel-method}
+\alias{Dresiduals,rsnonlinearModel-method}
 \title{ ~~ Methods for Function \code{Dresiduals} in Package \pkg{Gmm} ~~}
 \description{
 It returns the matrix of derivatives of the residuals with respect to
@@ -18,6 +19,10 @@ the coefficients.
 }
 
 \item{\code{signature(object = "nonlinearModel")}}{
+%%  ~~describe this method here~~
+}
+
+\item{\code{signature(object = "rsnonlinearModel")}}{
 %%  ~~describe this method here~~
 }
 

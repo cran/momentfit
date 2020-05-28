@@ -9,6 +9,7 @@
 \alias{evalDMoment,rnonlinearModel-method}
 \alias{evalDMoment,sysModel-method}
 \alias{evalDMoment,rslinearModel-method}
+\alias{evalDMoment,rsnonlinearModel-method}
 \alias{evalDMoment,regModel-method}
 \title{ ~~ Methods for Function \code{evalDMoment} in Package \pkg{momentfit} ~~}
 \description{
@@ -38,6 +39,8 @@ lambda=NULL)
 \S4method{evalDMoment}{sysModel}(object, theta)
 
 \S4method{evalDMoment}{rslinearModel}(object, theta)
+
+\S4method{evalDMoment}{rsnonlinearModel}(object, theta, impProb=NULL)
 }
 
 \arguments{

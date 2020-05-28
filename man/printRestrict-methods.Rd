@@ -6,6 +6,7 @@
 \alias{printRestrict,rformulaModel-method}
 \alias{printRestrict,rslinearModel-method}
 \alias{printRestrict,rnonlinearModel-method}
+\alias{printRestrict,rsnonlinearModel-method}
 \alias{printRestrict,rfunctionModel-method}
 \title{ ~~ Methods for Function \code{printRestrict} in Package \pkg{momentfit} ~~}
 \description{
@@ -30,6 +31,9 @@ It prints the detailed restrictions imposed on \code{"momentModel"} classes.
 }
 
 \item{\code{signature(object = "rslinearModel")}}{
+}
+
+\item{\code{signature(object = "rsnonlinearModel")}}{
 }
 }}
 \examples{

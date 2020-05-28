@@ -1,6 +1,6 @@
 Package: momentfit
-Version: 0.1-0
-Date: 2020-01-20
+Version: 0.1-1
+Date: 2020-05-27
 Title: Methods of Moments
 Author: Pierre Chausse <pchausse@uwaterloo.ca>
 Maintainer: Pierre Chausse <pchausse@uwaterloo.ca>
@@ -21,7 +21,7 @@ NeedsCompilation: yes
 VignetteBuilder: knitr
 Repository: CRAN
 Repository/R-Forge/Project: gmm
-Repository/R-Forge/Revision: 166
-Repository/R-Forge/DateTimeStamp: 2020-01-21 15:18:47
-Date/Publication: 2020-01-31 16:30:03 UTC
-Packaged: 2020-01-21 15:31:07 UTC; rforge
+Repository/R-Forge/Revision: 172
+Repository/R-Forge/DateTimeStamp: 2020-05-27 15:28:22
+Date/Publication: 2020-05-28 17:20:15 UTC
+Packaged: 2020-05-27 15:48:26 UTC; rforge

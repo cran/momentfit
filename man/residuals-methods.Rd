@@ -3,9 +3,9 @@
 \alias{residuals-methods}
 \alias{residuals,ANY-method}
 \alias{residuals,linearModel-method}
-\alias{residuals,rslinearModel-method}
 \alias{residuals,nonlinearModel-method}
 \alias{residuals,sysModel-method}
+\alias{residuals,rsysModel-method}
 \alias{residuals,gmmfit-method}
 \alias{residuals,gelfit-method}
 \alias{residuals,sgmmfit-method}
@@ -18,7 +18,7 @@ called on a \code{momentModel} class for a given coefficient theta or on a
 }
 \section{Methods}{
 \describe{
-\item{\code{signature(object = "rslinearModel")}}{
+\item{\code{signature(object = "rsysModel")}}{
 }
 
 \item{\code{signature(object = "linearModel")}}{

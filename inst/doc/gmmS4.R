@@ -99,13 +99,19 @@ smod2@sSpec
 smod2@sSpec@w
 
 ## -----------------------------------------------------------------------------
+setCoef(mod2, 1:3)
+
+## -----------------------------------------------------------------------------
+setCoef(mod2, c(theta1=1, theta2=1, theta0=2))
+
+## -----------------------------------------------------------------------------
 theta0 <- c(theta0=1, theta1=1, theta2=2)
 e1 <- residuals(mod1, c(1,2,3))
 e2 <- residuals(mod2, theta0)
 
 ## -----------------------------------------------------------------------------
-theta0 <- c(theta0=1, theta1=1, theta2=2)
 e1 <- Dresiduals(mod1)
+theta0 <- setCoef(mod2, c(1,1,2))
 e2 <- Dresiduals(mod2, theta0)
 
 ## -----------------------------------------------------------------------------
@@ -138,6 +144,8 @@ gt <- evalMoment(mod1, 1:3)
 
 ## -----------------------------------------------------------------------------
 theta0 <- c(theta0=.1, theta1=1, theta2=-2)
+## or ##
+theta0 <- setCoef(mod2, c(.1,1,-2))
 evalDMoment(mod2, theta0)
 
 ## -----------------------------------------------------------------------------
@@ -190,6 +198,9 @@ printRestrict(R2.mod1)
 coef(R2.mod1, c(1.5,.5))
 
 ## -----------------------------------------------------------------------------
+setCoef(R2.mod1, c(1.5,.5))
+
+## -----------------------------------------------------------------------------
 e1 <- residuals(as(R2.mod1, "linearModel"), 
                coef(R2.mod1, c(1.5,.5)))
 
@@ -201,7 +212,8 @@ all.equal(e1,e2)
 R1 <- c("theta1=theta2^2")
 R1.mod2 <- restModel(mod2, R1)
 evalDMoment(mod2, c(theta0=1, theta1=1, theta2=1))
-evalDMoment(R1.mod2, c(theta0=1, theta2=1))
+## with setCoef:
+evalDMoment(R1.mod2, setCoef(R1.mod2, c(1,1)))
 
 ## -----------------------------------------------------------------------------
 mod2@parNames
@@ -617,6 +629,9 @@ mod
 mod <- momentModel(y~x, ~x, vcov="iid", data=dat)
 
 ## -----------------------------------------------------------------------------
+setCoef(smod1, 1:11)
+
+## -----------------------------------------------------------------------------
 smod1[1:2, list(1:3,1:4)]
 
 ## -----------------------------------------------------------------------------
@@ -682,6 +697,22 @@ dim(G[[1]])
 rsmod1[1]
 
 ## -----------------------------------------------------------------------------
+nsmod <- as(smod1, "snonlinearModel")
+nsmod
+
+## -----------------------------------------------------------------------------
+nsmod@parNames
+
+## -----------------------------------------------------------------------------
+setCoef(nsmod, 1:11)
+
+## -----------------------------------------------------------------------------
+R1 <- c("theta1=-12*theta2","theta9=0.8", "theta11=0.3")
+R2<- c("theta1=1", "theta6=theta10")
+(rnsmod1 <- restModel(nsmod, R1))
+(rnsmod2 <- restModel(nsmod, R2))
+
+## -----------------------------------------------------------------------------
 wObj1 <- evalWeights(smod1, w="ident")
 wObj1
 
@@ -745,6 +776,24 @@ theta1
 coef(rsmod1, theta1)
 
 ## -----------------------------------------------------------------------------
+### Without cross-equation restrictions
+wObj1 <- evalWeights(rnsmod1, w="ident")
+theta0 <- solveGmm(rnsmod1, wObj1, theta0=rep(0, 8))$theta
+wObj2 <- evalWeights(rnsmod1, theta=theta0)
+theta1 <- solveGmm(rnsmod1, wObj2, theta0=theta0)$theta
+### Verify that the restrictions are correctly imposed:
+printRestrict(rnsmod1)
+coef(rnsmod1, theta1)
+### With cross-equation restrictions
+wObj1 <- evalWeights(rnsmod2, w="ident")
+theta0 <- solveGmm(rnsmod2, wObj1, theta0=rep(0, 9))$theta
+wObj2 <- evalWeights(rnsmod2, theta=theta0)
+theta1 <- solveGmm(rnsmod2, wObj2, theta0=theta0)$theta
+### Verify that the restrictions are correctly imposed:
+printRestrict(rnsmod2)
+coef(rnsmod2, theta1)
+
+## -----------------------------------------------------------------------------
 smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
 gmmFit(smod1, type="twostep")
 
@@ -777,6 +826,12 @@ gmmFit(rsmod1)@theta
 R2<- c("Supply.x1=1", "Demand1.x3=Demand2.x3")
 rsmod1<- restModel(smod1, R2)
 gmmFit(rsmod1)@theta
+
+## -----------------------------------------------------------------------------
+theta0 <- setCoef(rnsmod1, rep(0,8))
+gmmFit(rnsmod1, theta0=theta0)@theta
+theta0 <- setCoef(rnsmod2, rep(0,9))
+gmmFit(rnsmod2, theta0=theta0)@theta
 
 ## -----------------------------------------------------------------------------
 smod1 <- sysMomentModel(g,h,vcov="MDS", data=simData)
@@ -830,6 +885,26 @@ res2.r <- gmmFit(rsmod1)
 hypothesisTest(res.u, res2.r, type="LR")
 
 ## -----------------------------------------------------------------------------
+R1 <- c("theta1=-12*theta2","theta9=0.8", "theta11=0.3")
+R2<- c("theta1=1", "theta6=theta10")
+rnsmod1 <- restModel(nsmod, R1)
+rnsmod2 <- restModel(nsmod, R2)
+theta0 <- setCoef(nsmod, rep(0,11))
+fit <- gmmFit(nsmod, theta0=theta0)
+theta0 <- setCoef(rnsmod1, rep(0,8))
+rfit1 <- gmmFit(rnsmod1, theta0=theta0)
+theta0 <- setCoef(rnsmod2, rep(0,9))
+rfit2 <- gmmFit(rnsmod2, theta0=theta0)
+
+## -----------------------------------------------------------------------------
+hypothesisTest(object.u=fit, R=R1)
+hypothesisTest(object.u=fit, object.r=rfit1, type="LR")
+hypothesisTest(object.u=fit, object.r=rfit1, type="LM")
+hypothesisTest(object.u=fit, R=R2)
+hypothesisTest(object.u=fit, object.r=rfit2, type="LR")
+hypothesisTest(object.u=fit, object.r=rfit2, type="LM")
+
+## -----------------------------------------------------------------------------
 res <- gmm4(g, h, type="twostep", vcov="MDS", data=simData)
 res
 
@@ -845,6 +920,19 @@ res <- gmm4(g, NULL, type="twostep", vcov="iid", initW="tsls", data=simData) #SU
 R1 <- list(c("x1=-12*z2"), character(), c("x3=0.8", "z1=0.3"))
 res <- gmm4(g, h, data=simData, cstLHS=R1) #two-step by default
 res
+
+## -----------------------------------------------------------------------------
+h <- list(~z1+z2+z3, ~x3+z1+z2+z3+z4, ~x3+x4+z1+z2+z3)
+nlg <- list(Supply=y1~theta0+theta1*x1+theta2*z2,
+            Demand1=y2~alpha0+alpha1*x1+alpha2*x2+alpha3*x3,
+            Demand2=y3~beta0+beta1*x3+beta2*x4+beta3*z1)
+theta0 <- list(c(theta0=0,theta1=0,theta2=0),
+               c(alpha0=0,alpha1=0,alpha2=0, alpha3=0),
+               c(beta0=0,beta1=0,beta2=0,beta3=0))
+fit <- gmm4(nlg, h, theta0,data=simData)
+## the restricted estimation (:
+R2<- c("theta1=1", "alpha1=beta2")
+fit2 <- gmm4(nlg, h, theta0,data=simData, cstLHS=R2)
 
 ## -----------------------------------------------------------------------------
 data(ManufactCost)

@@ -42,7 +42,7 @@ export(momentModel, modelResponse, evalMoment, Dresiduals, modelDims, evalDMomen
        printRestrict, restModel, getRestrict, gmm4, sysMomentModel, ThreeSLS,
        rhoET, rhoEL, rhoEEL, rhoHD, Wu_lam, EEL_lam, REEL_lam, getLambda, 
        solveGel, rhoETEL, rhoETHD, ETXX_lam, gelFit, evalGel, getImpProb,
-       evalGelObj, momFct, gel4)
+       evalGelObj, momFct, gel4, setCoef)
  
 ###  S3 methods ###
 

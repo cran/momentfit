@@ -3,6 +3,7 @@
 \alias{evalGmm}
 \alias{evalGmm-methods}
 \alias{evalGmm,momentModel-method}
+\alias{evalGmm,sysModel-method}
 \title{ ~~ Methods for Function \code{evalGmm} in Package \pkg{modelfit} ~~}
 \description{
 Method to simply evaluate a GMM model at a fixed coefficient vector. It
@@ -10,7 +11,7 @@ creates a \code{"gmmfit"} object using that fixed vector.
 }
 \usage{
 \S4method{evalGmm}{momentModel}(model, theta, wObj=NULL, \dots)
-
+\S4method{evalGmm}{sysModel}(model, theta, wObj=NULL, \dots)
 }
 \arguments{
   \item{model}{An object of class \code{"momentModel"}.}
@@ -24,6 +25,9 @@ creates a \code{"gmmfit"} object using that fixed vector.
 \describe{
 
 \item{\code{signature(model = "momentModel")}}{
+}
+
+\item{\code{signature(model = "sysModel")}}{
 }
 }}
 \examples{
