@@ -20,6 +20,7 @@ It is created by \code{link{summary-methods}}.
     \item{\code{lconvergence}:}{Object of class \code{"numeric"} ~~ }
     \item{\code{impProb}:}{Object of class \code{"list"} ~~ }
     \item{\code{gelType}:}{Object of class \code{"list"} ~~ }
+    \item{\code{restrictedLam}:}{Object of class \code{"integer"} ~~ }
   }
 }
 \section{Methods}{

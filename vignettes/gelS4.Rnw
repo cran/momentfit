@@ -368,6 +368,23 @@ solveGel(update(lin, gelType="ETEL"), theta0=c(1,1,0))$theta
 solveGel(lin, theta0=c(1,1,0), lControl=list(algo="nlminb"))$theta
 @   
 
+It is also possible to restrict some $\lambda$'s to be equal to
+zero. This is like removing the associated moment conditions, so the
+degrees of freedom of the specification tests are adjusted
+accordingly.
+
+<<>>=
+res <- solveGel(lin, theta0=c(1,1,0), lControl=list(restrictedLam=c(2L,3L)))
+res$lambda
+@ 
+
+The argument restrictedLam is a vector of integers specifying which
+$\lambda$ to set to 0. Of course, it is an argument to use with
+caution. If a coefficient is only present in the moment conditions
+associated with the $\lambda$'s set to zero, their estimates are not
+reliable because they no longer affect the value of the objective
+function.
+
 \item tControl: A list of control for the coefSlv function. We could,
   for example, use the following options:
 

@@ -95,6 +95,10 @@ solveGel(update(lin, gelType="ETEL"), theta0=c(1,1,0))$theta
 solveGel(lin, theta0=c(1,1,0), lControl=list(algo="nlminb"))$theta
 
 ## -----------------------------------------------------------------------------
+res <- solveGel(lin, theta0=c(1,1,0), lControl=list(restrictedLam=c(2L,3L)))
+res$lambda
+
+## -----------------------------------------------------------------------------
 solveGel(lin, theta0=c(1,1,0),
          tControl=list(method="BFGS", control=list(maxit=2000, reltol=1e-9)))$theta
 

@@ -197,12 +197,13 @@ setClass("stsls", contains="sgmmfit")
 setClass("gelfit", representation(theta = "numeric", convergence = "numeric",
                                   lambda = "numeric", lconvergence = "numeric",
                                   call="callORNULL", gelType="list", vcov="list",
-                                  model="momentModel"))
+                                  model="momentModel", restrictedLam="integer"))
 
 setClass("summaryGel", representation(coef="matrix", specTest = "specTest",
                                       model="momentModel", lambda="matrix",
                                       convergence="numeric",lconvergence="numeric",
-                                      impProb="list", gelType="list"))
+                                      impProb="list", gelType="list",
+                                      restrictedLam="integer"))
 
 
 ## class converted
@@ -374,8 +375,8 @@ setAs("sysMomentWeights", "momentWeights",
       })
           
 
-setAs("rslinearModel", "rlinearModel",
-      function(from) {
+setAs("rslinearModel", "rlinearModel", 
+     function(from) {
           m <- as(from, "slinearModel")
           m <- as(m, "linearModel")
           restModel(m, from@cstLHS, from@cstRHS)

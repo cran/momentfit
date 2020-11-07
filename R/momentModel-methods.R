@@ -168,7 +168,7 @@ setMethod("residuals", signature("nonlinearModel"),
           function(object, theta)
               {
                   res <- modelDims(object)
-                  theta <- setCoef(object, theta)
+                  theta <- coef(object, setCoef(object, theta))
                   varList <- c(as.list(theta), as.list(object@modelF))
                   if (!is.null(res$fLHS))
                       {
@@ -200,7 +200,7 @@ setMethod("evalMoment", signature("regModel"),
 
 setMethod("evalMoment", signature("functionModel"),
           function(object, theta) {
-              theta <- setCoef(object, theta)
+              theta <- coef(object, setCoef(object, theta))              
               gt <- object@fct(theta, object@X)
               if (!is.null(sub <- attr(object@X, "subset")))
                   gt <- gt[,sub]
@@ -212,7 +212,7 @@ setMethod("evalMoment", signature("functionModel"),
 setMethod("evalMoment", signature("formulaModel"),
           function(object, theta) {
               res <- modelDims(object)
-              theta <- setCoef(object, theta)
+              theta <- coef(object, setCoef(object, theta))              
               varList <- c(as.list(theta), as.list(object@modelF))
               gt <- sapply(1:res$q, function(i) {
                   if (!is.null(res$fLHS[[i]]))
@@ -249,7 +249,7 @@ setMethod("Dresiduals", signature("linearModel"),
 
 setMethod("Dresiduals", signature("nonlinearModel"),
           function(object, theta) {
-              theta <- setCoef(object, theta)
+              theta <- coef(object, setCoef(object, theta))              
               res <- modelDims(object)
               varList <- c(as.list(theta), as.list(object@modelF))
               De <- numeric()
@@ -354,7 +354,7 @@ setMethod("evalDMoment", signature("functionModel"),
           function(object, theta, impProb=NULL, lambda=NULL)
           {
               spec <- modelDims(object)
-              theta <- setCoef(object, theta)
+              theta <- coef(object, setCoef(object, theta))              
               if (object@smooth && !is.null(object@dfct))
               {
                   object@dfct <- NULL
@@ -411,7 +411,7 @@ setMethod("evalDMoment", signature("functionModel"),
 setMethod("evalDMoment", signature("formulaModel"),
           function(object, theta, impProb=NULL, lambda=NULL)
           {
-              theta <- setCoef(object, theta)
+              theta <- coef(object, setCoef(object, theta))              
               spec <- modelDims(object)              
               if (is.null(impProb))
                   impProb <- 1/spec$n
@@ -660,7 +660,7 @@ setMethod("solveGmm", signature("linearModel", "momentWeights"),
 
 setMethod("solveGmm", signature("allNLModel", "momentWeights"),
           function(object, wObj, theta0=NULL, algo=c("optim","nlminb"), ...)
-              {
+          {
                   algo <- match.arg(algo)
                   if (is.null(theta0))
                       theta0 <- modelDims(object)$theta0
@@ -962,7 +962,7 @@ setMethod("gmmFit", signature("momentModel"), valueClass="gmmfit",
                  wObj <- evalWeights(model, NULL, "ident")
                  theta0 <- solveGmm(model, wObj, theta0, ...)$theta
              }
-             bw <- model@vcovOptions$bw             
+             bw <- model@vcovOptions$bw
              if (type != "cue")
              {
                  while(TRUE)
@@ -1230,14 +1230,22 @@ setMethod("solveGel", signature("momentModel"),
                    lControl=list(), tControl=list())
           {
               coefSlv <- match.arg(coefSlv)
+              if ("restrictedLam" %in% names(lControl))
+              {
+                  .restrictedLam <- lControl[["restrictedLam"]]
+                  lControl["restrictedLam"] <- NULL
+              } else {
+                  .restrictedLam <- integer()
+              }
               f <- function(theta, model, lambda0, slv, lcont, gelType, rhoFct,
-                            returnL=FALSE)
+                            returnL=FALSE, restrictedLam)
               {
                   names(theta) <- modelDims(model)$parNames
                   gt <- evalMoment(model, theta)
                   k <- model@sSpec@k
                   args <- c(list(gmat=gt, lambda0=lambda0, gelType=gelType,
-                                 rhoFct=rhoFct), lcont, k=k[1]/k[2])
+                                 rhoFct=rhoFct, restrictedLam=restrictedLam),
+                            lcont, k=k[1]/k[2])
                   res <- do.call(slv, args)
                   if (returnL)
                       return(res)
@@ -1248,28 +1256,31 @@ setMethod("solveGel", signature("momentModel"),
               if (is.null(theta0))
               {
                   if (!("theta0"%in%slotNames(object)))
-                      stop("Theta0 must be provided")
+                      stop("theta0 must be provided")
                   theta0 <- modelDims(object)$theta0
               }
               if (is.null(lamSlv))
                   lamSlv <- getLambda
               if (coefSlv == "nlminb")
+              {
                   args <- c(list(start=theta0, objective=f, gelType=gelType,
                                  model=object, lambda0=lambda0, rhoFct=rhoFct,
-                                 slv=lamSlv, lcont=lControl), tControl)
-              else
+                                 slv=lamSlv, lcont=lControl,
+                                 restrictedLam=.restrictedLam), tControl)
+              } else {
                   args <- c(list(par=theta0, fn=f, model=object, lambda0=lambda0,
                                  slv=lamSlv, lcont=lControl, gelType=gelType,
-                                 rhoFct=rhoFct), tControl)
-              
+                                 rhoFct=rhoFct, restrictedLam=.restrictedLam), tControl)
+              }
               res <- do.call(get(coefSlv), args)
               resl <- f(res$par,  object, lambda0, lamSlv, gelType=gelType,
-                        rhoFct=rhoFct, lControl, TRUE)
+                        rhoFct=rhoFct, lControl, TRUE, .restrictedLam)
               names(resl$lambda) <- modelDims(object)$momNames
               theta <- res$par
               names(theta) <- modelDims(object)$parNames                  
               list(theta=theta, convergence=res$convergence,
-                   lambda=resl$lambda, lconvergence=resl$convergence)
+                   lambda=resl$lambda, lconvergence=resl$convergence,
+                   restrictedLam=.restrictedLam)
           })
 
 ################ model fit ###########
@@ -1303,7 +1314,8 @@ setMethod("gelFit", signature("momentModel"), valueClass="gelfit",
                             lconvergence=res$lconvergence$convergence,
                             lambda=res$lambda, call=Call,
                             gelType=list(name=gelType, rhoFct=rhoFct),
-                            vcov=list(), model=model)
+                            vcov=list(), model=model,
+                            restrictedLam = res$restrictedLam)
               if (vcov)
                   gelfit@vcov <- vcov(gelfit)
               gelfit
@@ -1326,10 +1338,18 @@ setMethod("evalGel", signature("momentModel"),
               type <- paste("Eval-", gelType, sep="")
               if (is.null(lambda))
               {
+                  if ("restrictedLam" %in% names(lControl))
+                  {
+                      .restrictedLam <- lControl[["restrictedLam"]]
+                      lControl["restrictedLam"] <- NULL
+                  } else {
+                      .restrictedLam <- integer()
+                  }
                   gt <- evalMoment(model, theta)
                   k <- model@sSpec@k
                   args <- c(list(gmat=gt, gelType=gelType,
-                                 rhoFct=rhoFct), lControl, k=k[1]/k[2])
+                                 rhoFct=rhoFct, restrictedLam=.restrictedLam),
+                            lControl, k=k[1]/k[2])
                   if (is.null(lamSlv))
                       lamSlv <- getLambda
                   res <- do.call(lamSlv, args)
@@ -1339,13 +1359,14 @@ setMethod("evalGel", signature("momentModel"),
               } else {
                   lconvergence <- 1
                   type <- paste(type, " with fixed lambda", sep="")
+                  .restrictedLam <- integer()
               }
               names(lambda) <- spec$momNames
               if (!is.null(rhoFct))
                   gelType <- "Other"
               new("gelfit", theta=theta, convergence=1, lconvergence=lconvergence,
                   lambda=lambda, call=Call, gelType=list(name=gelType, rhoFct=rhoFct),
-                  vcov=list(), model=model)
+                  vcov=list(), model=model, restrictedLam = .restrictedLam)
           })
 
 

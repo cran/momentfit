@@ -127,14 +127,20 @@ setMethod("print", "gelfit",
                   type <- paste("Just-Identified ", type, sep="")
               cat("\nEstimation: ", type,"\n")
               cat("Convergence Theta: ", x@convergence, "\n")
-              cat("Convergence Lambda: ", x@lconvergence, "\n")              
+              cat("Convergence Lambda: ", x@lconvergence, "\n")
+              if (length(x@restrictedLam))
+              {
+                  cat("Lambda's fixed at 0: ",
+                      paste(x@restrictedLam, collapse=", ", sep=""),
+                      "\n", sep="")
+              }
               cat("coefficients:\n")
               print.default(format(theta, ...), print.gap=2L, quote=FALSE)
               if (lambda)
-                  {
-                      cat("lambdas:\n")
-                      print.default(format(x@lambda, ...), print.gap=2L, quote=FALSE)
-                  }
+              {
+                  cat("lambdas:\n")
+                  print.default(format(x@lambda, ...), print.gap=2L, quote=FALSE)
+              }
           })
 
 ## show
@@ -267,9 +273,11 @@ setMethod("summary","gelfit",
                   tval.t <- theta/se.t
                   tval.l <- lambda/se.l
                   coef <- cbind(theta, se.t, tval.t,
-                                2*pnorm(abs(tval.t), lower.tail = FALSE))
+                                2*pnorm(abs(tval.t), lower.tail = FALSE))                 
                   coefl <- cbind(lambda, se.l, tval.l,
                                  2*pnorm(abs(tval.l), lower.tail = FALSE))
+                  if (length(object@restrictedLam))
+                      coefl[object@restrictedLam,-1] <- NA
                   stest <- specTest(object)
                   dimnames(coef) <- list(names(theta), c("Estimate", "Std. Error", 
                                                          "t value", "Pr(>|t|)"))
@@ -280,7 +288,8 @@ setMethod("summary","gelfit",
                   ans <- new("summaryGel", coef = coef, specTest = stest,
                              model = object@model, lambda=coefl,
                              convergence=object@convergence,gelType=object@gelType,
-                             lconvergence=object@lconvergence, impProb=pt)
+                             lconvergence=object@lconvergence, impProb=pt,
+                             restrictedLam=object@restrictedLam)
                   ans})
 
 ## confint
@@ -510,7 +519,7 @@ setMethod("specTest", signature("gelfit", "missing"),
               type <- match.arg(type)
               spec <- modelDims(object@model)
               gelType <- object@gelType
-              q <- spec$q
+              q <- spec$q-length(object@restrictedLam)
               n <- spec$n
               df <- q-spec$k              
               test <- numeric()
@@ -557,6 +566,12 @@ setMethod("print", "summaryGel",
               cat("\nEstimation: ", type,"\n")            
               cat("Convergence Theta: ", x@convergence, "\n", sep="")
               cat("Convergence Lambda: ", x@lconvergence, "\n", sep="")
+              if (length(x@restrictedLam))
+              {
+                  cat("Lambda's fixed at 0: ",
+                      paste(x@restrictedLam, collapse=", ", sep=""),
+                      "\n", sep="")
+              }              
               cat("Average |Sum of pt*gt()]|: ", format(mean(abs(x@impProb$convMom)),
                                                         digits=5), "\n", sep="")
               cat("|Sum of pt - 1|: ", format(mean(abs(x@impProb$convProb)),
