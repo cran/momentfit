@@ -18,6 +18,7 @@
 \alias{[,rfunctionModel,numeric,missing-method}
 \alias{[,sysModel,missing,list-method}
 \alias{[,snonlinearModel,numeric,missing-method}
+\alias{[,sfunctionModel,numeric,missing-method}
 \alias{[,slinearModel,numeric,missing-method}
 \alias{[,rsnonlinearModel,numeric,missing-method}
 \alias{[,rslinearModel,numeric,missing-method}

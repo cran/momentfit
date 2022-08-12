@@ -33,7 +33,7 @@ gmm4 <- function (g, x, theta0 = NULL, grad = NULL,
             model <- try(momentModel(g=g, x=x, theta0=theta0, grad=grad, vcov=vcov2,
                                   vcovOptions=vcovOptions,survOptions=survOptions,
                                   centeredVcov=centeredVcov, data=data), silent=TRUE)
-        if (is.null(model) || class(model)=="try-error")
+        if (is.null(model) || inherits(model,"try-error"))
             model <- sysMomentModel(g=g, h=x, theta0=theta0, vcov=vcov2,
                                  vcovOptions=vcovOptions,survOptions=survOptions,
                                  centeredVcov=centeredVcov, data=data)

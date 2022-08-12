@@ -7,6 +7,7 @@
 \alias{solveGmm,slinearModel,sysMomentWeights-method}
 \alias{solveGmm,rslinearModel,sysMomentWeights-method}
 \alias{solveGmm,snonlinearModel,sysMomentWeights-method}
+\alias{solveGmm,sfunctionModel,sysMomentWeights-method}
 \alias{solveGmm,rnonlinearModel,momentWeights-method}
 \title{ ~~ Methods for Function \code{solveGmm} in Package \pkg{momentfit} ~~}
 \description{
@@ -27,6 +28,9 @@ algo=c("optim","nlminb"), ...)
 \S4method{solveGmm}{rslinearModel,sysMomentWeights}(object, wObj, theta0=NULL)
 
 \S4method{solveGmm}{snonlinearModel,sysMomentWeights}(object, wObj,
+theta0=NULL, \dots)
+
+\S4method{solveGmm}{sfunctionModel,sysMomentWeights}(object, wObj,
 theta0=NULL, \dots)
 }
 \arguments{

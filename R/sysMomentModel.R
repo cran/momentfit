@@ -1,9 +1,69 @@
 
 ##################  Constructor for the sysGmmModels classes   #####################
 
-sysMomentModel <- function(g, h=NULL, theta0=NULL,
+.sysFct <- function(g, h=NULL, theta0=NULL,grad=NULL,
+                    vcov = c("iid", "HAC", "MDS", "CL"),
+                    vcovOptions=list(), centeredVcov = TRUE, data=parent.frame(),
+                    na.action="na.omit", survOptions=list())
+{
+    vcov <- match.arg(vcov)
+    if (vcov == "iid")
+        vcov <- "MDS"
+    if (!is.list(g))
+        stop("g must be a list")
+    if (!all(sapply(g, function(gi)
+        inherits(gi, "function"))))
+        stop("g must be a list of functions")
+    if (!is.list(theta0))
+        stop("theta0 must be a list")
+    if (length(g) != length(theta0))
+        stop("The length of g and theta0 must be the same")
+    neqn <- length(g)
+    if (is.null(grad))
+    {
+        grad <- lapply(1:neqn, function(i) NULL)
+    } else {
+        if (!is.list(grad))
+            stop("grad must be a list")
+        if (length(grad) != neqn)
+            stop("The length is grad must be equal to the length of g")
+    }
+    if (is.null(names(g)))
+    {
+        eqnNames <- paste("Eqn", 1:neqn, sep="")
+    } else {
+        eqnNames <- names(g)
+    }
+    mod <- lapply(1:neqn, function(i)
+        momentModel(g=g[[i]], x=h, theta0=theta0[[i]],grad=grad[[i]],
+                    vcov=vcov, vcovOptions=vcovOptions,
+                    centeredVcov=centeredVcov, data=data,
+                    na.action=na.action, survOptions=survOptions,
+                    smooth=FALSE))
+    new("sfunctionModel",
+        X=mod[[1]]@X,
+        fct=lapply(mod, function(mi) mi@fct),
+        dfct=lapply(mod, function(mi) mi@dfct),        
+        vcov=mod[[1]]@vcov,
+        theta0=lapply(mod, function(mi) mi@theta0),
+        n=mod[[1]]@n,
+        q=sapply(mod, function(mi) mi@q),
+        k=sapply(mod, function(mi) mi@k),
+        parNames=lapply(mod, function(mi) mi@parNames),
+        momNames=lapply(mod, function(mi) mi@momNames),
+        eqnNames=eqnNames, vcovOptions=mod[[1]]@vcovOptions,
+        centeredVcov=mod[[1]]@centeredVcov,
+        sameMom=FALSE, SUR=FALSE,
+        varNames=lapply(mod, function(mi) mi@varNames), 
+        omit=mod[[1]]@omit, survOptions=mod[[1]]@survOptions,
+        sSpec=mod[[1]]@sSpec, smooth=mod[[1]]@smooth)
+}
+
+
+sysMomentModel <- function(g, h=NULL, theta0=NULL,grad=NULL,
                            vcov = c("iid", "HAC", "MDS", "CL"),
-                           vcovOptions=list(), centeredVcov = TRUE, data=parent.frame(),
+                           vcovOptions=list(), centeredVcov = TRUE,
+                           data=parent.frame(),
                            na.action="na.omit", survOptions=list())
 {
     vcov <- match.arg(vcov)
@@ -15,6 +75,13 @@ sysMomentModel <- function(g, h=NULL, theta0=NULL,
         stop("'data' must be a list or an environment")
     if (!is.list(g))
         stop("For system of equations, g must be lists of formulas")
+    if (all(sapply(g, function(gi) inherits(gi, "function"))))
+    {
+        mod <- .sysFct(g, h, theta0,grad, vcov,
+                    vcovOptions, centeredVcov, data,
+                    na.action="na.omit", survOptions=list())
+        return(mod)
+    }
     clg <- sapply(g, class)
     if (!all(clg=="formula"))
         stop("For system of equations, g must be lists of formulas")

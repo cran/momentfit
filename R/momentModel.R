@@ -98,7 +98,7 @@ momentModel <- function(g, x=NULL, theta0=NULL,grad=NULL,
         survOptions <- .getSurvOptions(data, survOptions)
         if (!is.list(data) & !is.environment(data) & !is.function(g)) 
             stop("'data' must be a list or an environment")    
-        if (any(class(g)=="formula"))
+        if (inherits(g,"formula"))
             {
                 chk <- names(theta0) %in% all.vars(g)
                 if (length(chk) == 0 | all(!chk))
@@ -161,7 +161,7 @@ momentModel <- function(g, x=NULL, theta0=NULL,grad=NULL,
             } else {
                 if (!is.null(x))
                     stop("For formula Models, x must be NULL. The moments are only defined as a list of formulas")
-                if (class(g) != "list")
+                if (!is.list(g))
                     stop("For formula Models, g must be a list of formulas")
                 if (any(sapply(g, function(gi) class(gi)) != "formula"))
                     stop("For formula Models, g must be a list of formulas")

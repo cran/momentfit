@@ -10,7 +10,7 @@ It builds the object of either class \code{"slinearModel"} or
 conditions.
 }
 \usage{
-sysMomentModel(g, h=NULL, theta0=NULL,
+sysMomentModel(g, h=NULL, theta0=NULL, grad=NULL, 
             vcov = c("iid", "HAC", "MDS", "CL"),
             vcovOptions=list(), centeredVcov = TRUE,
             data=parent.frame(),na.action="na.omit",
@@ -27,6 +27,9 @@ sysMomentModel(g, h=NULL, theta0=NULL,
   only when the equations are nonlinear, in which case, it must be a
   list of named vector, with the names corresponding to the coefficient
   names in the regression formulas.}
+
+\item{grad}{A list of functions that returns the derivative of the
+  moment functions. Only used if \code{g} is a list of functions.}
 
 \item{vcov}{Assumption on the properties of the moment conditions. By
   default, they are weakly dependant processes. For \code{MDS}, we

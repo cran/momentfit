@@ -173,13 +173,13 @@ setMethod("residuals", signature("nonlinearModel"),
                   if (!is.null(res$fLHS))
                       {
                           lhs <- try(eval(res$fLHS, varList))
-                          if (any(class(lhs)=="try-error"))
+                          if (inherits(lhs, "try-error"))
                               stop("Cannot evaluate the LHS")
                       } else {
                           lhs <- 0
                       }
                   rhs <- try(eval(res$fRHS, varList))
-                  if (any(class(rhs)=="try-error"))
+                  if (inherits(rhs, "try-error"))
                       stop("Cannot evaluate the RHS")
                   c(lhs-rhs)
               })
@@ -218,7 +218,7 @@ setMethod("evalMoment", signature("formulaModel"),
                   if (!is.null(res$fLHS[[i]]))
                   {
                       lhs <- try(eval(res$fLHS[[i]], varList))
-                      if (any(class(lhs)=="try-error"))
+                      if (inherits(lhs, "try-error"))
                           stop("Cannot evaluate the LHS")
                   } else {
                       lhs <- 0
@@ -226,7 +226,7 @@ setMethod("evalMoment", signature("formulaModel"),
                   if (!is.null(res$fRHS[[i]]))
                   {
                       rhs <- try(eval(res$fRHS[[i]], varList))
-                      if (any(class(lhs)=="try-error"))
+                      if (inherits(rhs, "try-error"))
                           stop("Cannot evaluate the RHS")
                   } else {
                       lhs <- 0
@@ -272,7 +272,7 @@ setGeneric("modelDims", function(object, ...) standardGeneric("modelDims"))
 setMethod("modelDims", "linearModel",
           function(object) {
               n <- if (object@smooth)
-                       object@n-object@sSpec@w$m
+                       object@n-2*object@sSpec@w$m
                    else
                        object@n
               list(k=object@k, q=object@q, n=n, parNames=object@parNames,
@@ -282,7 +282,7 @@ setMethod("modelDims", "linearModel",
 setMethod("modelDims", "nonlinearModel",
           function(object) {
               n <- if (object@smooth)
-                       object@n-object@sSpec@w$m
+                       object@n-2*object@sSpec@w$m
                    else
                        object@n              
               list(k=object@k, q=object@q, n=n, parNames=object@parNames,
@@ -293,7 +293,7 @@ setMethod("modelDims", "nonlinearModel",
 setMethod("modelDims", "functionModel",
           function(object) {
               n <- if (object@smooth)
-                       object@n-object@sSpec@w$m
+                       object@n-2*object@sSpec@w$m
                    else
                        object@n              
               list(k=object@k, q=object@q, n=n, parNames=object@parNames,
@@ -304,7 +304,7 @@ setMethod("modelDims", "functionModel",
 setMethod("modelDims", "formulaModel",
           function(object) {
               n <- if (object@smooth)
-                       object@n-object@sSpec@w$m
+                       object@n-2*object@sSpec@w$m
                    else
                        object@n              
               list(k=object@k, q=object@q, n=n, parNames=object@parNames,
@@ -906,7 +906,7 @@ setMethod("gmmFit", signature("momentModel"), valueClass="gmmfit",
              chk <- validObject(model, TRUE)
              if (!chk)
                  stop("model is not a valid momentModel object")
-             if (initW == "tsls" && class(model) != "linearModel")
+             if (initW == "tsls" && !is(model,"linearModel"))
                  stop("initW='tsls' is for linear models only")
              if (is.character(weights) && !(weights%in%c("optimal","ident")))
                  stop("weights is a matrix or one of 'optimal' or 'ident'")
@@ -941,7 +941,7 @@ setMethod("gmmFit", signature("momentModel"), valueClass="gmmfit",
                             efficientGmm=efficientGmm)
                  return(ans)
              }
-             if (class(model) == "linearModel")
+             if (is(model,"linearModel"))
              {
                  if (model@vcov == "iid")
                      if (is.character(weights) && weights == "optimal")

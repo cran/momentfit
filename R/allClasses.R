@@ -101,7 +101,19 @@ setClass("snonlinearModel", slots = list(data="data.frame", instT="list",
                                          omit='integer', survOptions="list",
                                          sSpec="sSpec", smooth="logical"))
 
-setClassUnion("sysModel", c("slinearModel", "snonlinearModel"))
+setClass("sfunctionModel", slots = list(X="ANY", fct="list", dfct="list",
+                                        vcov="character",theta0="list",
+                                        n="integer", q="integer",k="integer",
+                                        parNames="list", momNames="list",
+                                        eqnNames="character", vcovOptions="list",
+                                        centeredVcov="logical", 
+                                        varNames="list",
+                                        sameMom="logical", SUR="logical",
+                                        omit='integer', survOptions="list",
+                                        sSpec="sSpec", smooth="logical"))
+
+setClassUnion("sysModel", c("slinearModel", "snonlinearModel",
+                            "sfunctionModel"))
 
 
 
