@@ -1,6 +1,6 @@
 Package: momentfit
-Version: 0.3
-Date: 2022-07-30
+Version: 0.5
+Date: 2023-06-04
 Title: Methods of Moments
 Author: Pierre Chausse <pchausse@uwaterloo.ca>
 Maintainer: Pierre Chausse <pchausse@uwaterloo.ca>
@@ -19,9 +19,6 @@ Collate: 'allClasses.R' 'validity.R' 'momentData.R'
 License: GPL (>= 2)
 NeedsCompilation: yes
 VignetteBuilder: knitr
+Packaged: 2023-06-05 14:51:08 UTC; pierrechausse
 Repository: CRAN
-Repository/R-Forge/Project: gmm
-Repository/R-Forge/Revision: 202
-Repository/R-Forge/DateTimeStamp: 2022-08-12 02:20:25
-Date/Publication: 2022-08-12 13:10:02 UTC
-Packaged: 2022-08-12 02:31:59 UTC; rforge
+Date/Publication: 2023-06-05 15:20:02 UTC

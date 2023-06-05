@@ -172,7 +172,7 @@ setMethod("specTest", signature("gmmfit", "numeric"),
 
 setGeneric("summary")
 setMethod("summary", "gmmfit",
-          function(object, ...)
+          function(object, testStrength=TRUE, ...)
           {
               v <- vcov(object, ...)
               se <- sqrt(diag(v))
@@ -187,7 +187,9 @@ setMethod("summary", "gmmfit",
                                  iid="OLS",
                                  MDS="HC",
                                  CL="CL")
-              strength <- momentStrength(object@model, coef(object), vcovType) 
+              strength <-  if (testStrength){
+                               momentStrength(object@model, coef(object), vcovType)
+                           } else { list(strength=NULL, mess=NULL) }
               dimnames(coef) <- list(names(par), 
                                      c("Estimate", "Std. Error", "t value", "Pr(>|t|)"))
               wSpec <- object@wObj@wSpec

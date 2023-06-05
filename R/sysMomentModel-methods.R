@@ -156,7 +156,7 @@ setMethod("[", c("sysModel", "missing", "list"),
                                   }
                           attr(f, ".Environment")<- .GlobalEnv
                           x@q[s] <- length(momNames)
-                          x@instT[[s]] <- terms(f)
+                          x@instT[[s]] <- attr(f, "terms")
                           x@momNames[[s]] <- momNames                              
                       }    
                   }
@@ -311,8 +311,8 @@ setMethod("merge", c("linearModel", "linearModel"),
               momNames <- lapply(all, function(s) modelDims(s)$momNames)
               varNames <- lapply(all, function(s) s@varNames)
               isEndo <- lapply(all, function(s) s@isEndo)
-              instT <- lapply(all, function(s) terms(s@instF))
-              modelT <- lapply(all, function(s) terms(s@modelF))
+              instT <- lapply(all, function(s) attr(s@instF, "terms"))
+              modelT <- lapply(all, function(s) attr(s@modelF, "terms"))
               dat <- do.call(cbind, lapply(all, function(s) cbind(s@modelF, s@instF)))
               dat <- dat[,!duplicated(colnames(dat))]
               eqnNames <- paste("Eqn", 1:length(all), sep="")
@@ -341,7 +341,7 @@ setMethod("merge", c("nonlinearModel", "nonlinearModel"),
               momNames <- lapply(all, function(s) modelDims(s)$momNames)
               varNames <- lapply(all, function(s) s@varNames)
               isEndo <- lapply(all, function(s) s@isEndo)              
-              instT <- lapply(all, function(s) terms(s@instF))
+              instT <- lapply(all, function(s) attr(s@instF, "terms"))
               theta0 <- lapply(all, function(s) s@theta0)
               eqnNames <- paste("Eqn", 1:length(all), sep="")
               dat <- do.call(cbind, lapply(all, function(s) cbind(s@modelF, s@instF)))
@@ -374,7 +374,7 @@ setMethod("merge", c("snonlinearModel", "nonlinearModel"),
               momNames <- c(spec$momNames, lapply(all, function(s) modelDims(s)$momNames))
               varNames <- c(x@varNames, lapply(all, function(s) s@varNames))
               isEndo <- c(x@isEndo, lapply(all, function(s) s@isEndo))
-              instT <- c(x@instT, lapply(all, function(s) terms(s@instF)))
+              instT <- c(x@instT, lapply(all, function(s) attr(s@instF, "terms")))
               theta0 <- c(spec$theta0, lapply(all, function(s) modelDims(s)$theta0))
               eqNames <- x@eqnNames
               eqnNames <- c(eqNames, paste("Eqn",
@@ -406,8 +406,8 @@ setMethod("merge", c("slinearModel", "linearModel"),
               momNames <- c(spec$momNames, lapply(all, function(s) modelDims(s)$momNames))
               varNames <- c(x@varNames, lapply(all, function(s) s@varNames))
               isEndo <- c(x@isEndo, lapply(all, function(s) s@isEndo))
-              instT <- c(x@instT, lapply(all, function(s) terms(s@instF)))
-              modelT <- c(x@modelT, lapply(all, function(s) terms(s@modelF)))
+              instT <- c(x@instT, lapply(all, function(s) attr(s@instF, "terms")))
+              modelT <- c(x@modelT, lapply(all, function(s) attr(s@modelF, "terms")))
               dat <- do.call(cbind, lapply(all, function(s) cbind(s@modelF, s@instF)))
               dat <- dat[,!duplicated(colnames(dat))]
               eqNames <- x@eqnNames

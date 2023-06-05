@@ -718,42 +718,55 @@ setMethod("momentStrength", signature("formulaModel"),
 setMethod("momentStrength", signature("linearModel"), 
           function(object, theta, vcovType=c("OLS","HC","HAC","CL")){
               spec <- modelDims(object)
+              getF <- function(i)
+              {
+                  resu <- lm(X[, i] ~ Z - 1)
+                  v <- switch(vcovType, OLS = vcov(resu),
+                              HC = vcovHC(resu, "HC1"),
+                              HAC = vcovHAC(resu),
+                              CL = do.call(vcovCL, c(object@vcovOptions, list(x = resu))))
+                  v <- v[!exoInst, !exoInst]
+                  b <- coef(resu)[!exoInst]
+                  f <- b %*% solve(v, b)/df1
+                  df2 <- resu$df.residual
+                  c(f, df1, df2)
+              }
               EndoVars <- !(spec$parNames %in% spec$momNames)
               exoInst <- spec$momNames %in% spec$parNames
               vcovType <- match.arg(vcovType)
-              if (all(!EndoVars))
-                  {
-                      fstats <- NULL
-                      mess <- "No endogenous variables: no strength measure"  
-                  } else {
-                      X <- model.matrix(object)
-                      X <- X[,EndoVars,drop=FALSE]
-                      Z <- model.matrix(object, "instrument")
-                      fstats <- matrix(ncol=0, nrow=3)
-                      df1 <- sum(!exoInst)                      
-                      for (i in 1:ncol(X))
-                          {
-                              resu <- lm(X[,i   ]~Z-1)                              
-                              v <- switch(vcovType,
-                                          OLS=vcov(resu),
-                                          HC=vcovHC(resu,"HC1"),
-                                          HAC=vcovHAC(resu),
-                                          CL=do.call(vcovCL,c(object@vcovOptions,
-                                                              list(x=resu)))
-                                          )
-                              v <- v[!exoInst,!exoInst]
-                              b <- coef(resu)[!exoInst]
-                              f <- b%*%solve(v, b)/df1
-                              df2 <- resu$df.residual
-                              fstats <- cbind(fstats, c(f, df1, df2))
-                          }
-                      fstats <- rbind(fstats, 1-pf(fstats[1,], fstats[2,],fstats[3,]))
-                      colnames(fstats) <- colnames(X)
-                      rownames(fstats) <- c("Stats","df1","df2","pv")
-                      fstats <- t(fstats)
-                      mess <- "Instrument strength based on the F-Statistics of the first stage OLS"
+              if (all(!EndoVars)) {
+                  fstats <- NULL
+                  mess <- "No endogenous variables: no strength measure"
+              }
+              else {
+                  X <- model.matrix(object)
+                  X <- X[, EndoVars, drop = FALSE]
+                  Z <- model.matrix(object, "instrument")
+                  fstats <- matrix(ncol = 0, nrow = 3)
+                  df1 <- sum(!exoInst)
+                  mess <- "Instrument strength based on the F-Statistics of the first stage OLS"
+                  addM <- FALSE
+                  for (i in 1:ncol(X)) {
+                      tmp <- try(getF(i), silent=TRUE)
+                      if (inherits(tmp, "try-error"))
+                      {
+                          fstats <- cbind(fstats, c(NA, NA, NA))
+                          addM <- TRUE
+                      } else {
+                          fstats <- cbind(fstats, tmp)
+                      }
                   }
-              list(strength=fstats, mess=mess)
+                  if (addM)
+                      mess <- paste(mess, "\n",
+                                    "(Failed to compute some first stage F-statistics)",
+                                    sep="")
+                  fstats <- rbind(fstats, 1 - pf(fstats[1, ], fstats[2,], fstats[3, ]))
+                  colnames(fstats) <- colnames(X)
+                  rownames(fstats) <- c("Stats", "df1", "df2", "pv")
+                  fstats <- t(fstats)
+
+              }
+              list(strength = fstats, mess = mess)
           })
 
 ### Subsetting models

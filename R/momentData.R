@@ -38,7 +38,7 @@
                 instF <- model.frame(formula, h, na.action="na.pass",
                                      drop.unused.levels=TRUE)
         }
-    h <- lapply(1:ncol(Y), function(i) formula(terms(instF), .GlobalEnv))
+    h <- lapply(1:ncol(Y), function(i) formula(attr(instF, "terms"), .GlobalEnv))
     data <- cbind(modelF, instF)
     data <- data[,!duplicated(colnames(data))]
     return(.slModelData(g,h,data,survOptions, vcovOptions,na.action))
@@ -51,7 +51,7 @@
                               drop.unused.levels=TRUE)
         if (is.matrix(modelF[[1]]))
             return(.multiToSys(formula, h, data))
-        parNames <- colnames(model.matrix(terms(modelF), modelF))
+        parNames <- colnames(model.matrix(attr(modelF, "terms"), modelF))
         k <- length(parNames)
         if (any(class(h) == "formula"))
             {
@@ -76,7 +76,7 @@
                 instF <- model.frame(formula, h, na.action="na.pass",
                                      drop.unused.levels=TRUE)
             }
-        momNames <- colnames(model.matrix(terms(instF), instF))
+        momNames <- colnames(model.matrix(attr(instF, "terms"), instF))
         q <- length(momNames)
         isEndo <- !(parNames %in% momNames)
         tmpDat <- cbind(modelF, instF)
@@ -211,7 +211,7 @@
                 instF <- model.frame(formula, h, na.action="na.pass",
                                      drop.unused.levels=TRUE)
             }
-        momNames <- colnames(model.matrix(terms(instF), instF))
+        momNames <- colnames(model.matrix(attr(instF, "terms"), instF))
         isEndo <- !(varNames %in% momNames)
         q <- length(momNames)
         tmpDat <- cbind(modelF, instF)
@@ -298,8 +298,8 @@
     {
         res <- lapply(1:length(g), function(i) .lModelData(g[[i]], h[[i]], data,
                                                          list(), list(), "na.pass"))
-        modelT <- lapply(res, function(x) terms(x$modelF))
-        instT <-  lapply(res, function(x) terms(x$instF))
+        modelT <- lapply(res, function(x) attr(x$modelF, "terms"))
+        instT <-  lapply(res, function(x) attr(x$instF, "terms"))
         allDat <-  do.call(cbind, lapply(res, function(x) cbind(x$modelF, x$instF)))
         allDat <- allDat[,!duplicated(colnames(allDat))]
         add  <- survOptions$weights
@@ -350,7 +350,7 @@
                                                           list(), "na.pass"))
         fRHS <- lapply(res, function(x) x$fRHS)
         fLHS <- lapply(res, function(x) x$fLHS)
-        instT <-  lapply(res, function(x) terms(x$instF))
+        instT <-  lapply(res, function(x) attr(x$instF, "terms"))
         allDat <-  do.call(cbind, lapply(res, function(x) cbind(x$modelF, x$instF)))
         allDat <- allDat[,!duplicated(colnames(allDat))]
         add  <- survOptions$weights

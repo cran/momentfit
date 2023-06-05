@@ -178,7 +178,7 @@ setMethod("specTest", c("sgmmfit","missing"),
 ### summary
 
 setMethod("summary","sgmmfit",
-          function (object, ...) {
+          function (object, testStrength=TRUE, ...) {
               spec <- modelDims(object@model)
               eqnNames <- spec$eqnNames
               neqn <- length(eqnNames)
@@ -202,10 +202,10 @@ setMethod("summary","sgmmfit",
               vcovType <- switch(object@model@vcov, HAC = "HAC", iid = "OLS", 
                                  MDS = "HC")
               strength <- lapply(1:neqn, function(i) {
-                  if (inherits(object@model, "slinearModel"))
+                  if (inherits(object@model, "slinearModel") & testStrength)
                       momentStrength(object@model[i], par[[i]], vcovType)
                   else
-                      NULL})             
+                      list(strength=NULL, mess=NULL)})             
               wSpec <- object@wObj@wSpec
               ans <- new("summarySysGmm", coef = coef, type = object@type, 
                          specTest = stest, strength = strength, model = object@model, 

@@ -10,15 +10,16 @@
 Compute several results from a moment based model fit.
 }
 \usage{
-\S4method{summary}{gmmfit}(object, \dots)
+\S4method{summary}{gmmfit}(object, testStrength=TRUE, \dots)
 
 \S4method{summary}{gelfit}(object, \dots)
 
-\S4method{summary}{sgmmfit}(object, \dots)
+\S4method{summary}{sgmmfit}(object, testStrength=TRUE, \dots)
 }
 \arguments{
   \item{object}{A fit object from the package (GMM and GEL are the only
     methods for now)}
+  \item{testStrength}{Should the first stage F-statistics be computed?}
   \item{\dots}{Other arguments to pass to \code{\link{vcov-methods}}}
   }
 \section{Methods}{
