@@ -55,12 +55,12 @@ mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
 mod4
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  dat <- data.frame(x=x)
-#  gform <- list(x~mu,
-#                x^2~mu^2+sig,
-#                x^3~mu^3+3*mu*sig,
-#                x^4~mu^4+6*mu^2*sig+3*sig^2)
-#  mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
+# dat <- data.frame(x=x)
+# gform <- list(x~mu,
+#               x^2~mu^2+sig,
+#               x^3~mu^3+3*mu*sig,
+#               x^4~mu^4+6*mu^2*sig+3*sig^2)
+# mod4 <- momentModel(gform, NULL, theta0, vcov="MDS", data=dat)
 
 ## -----------------------------------------------------------------------------
 mod.hac <- momentModel(y~x1+x2, ~x1+z2+z3, vcov="HAC", 
@@ -119,6 +119,9 @@ Z <- model.matrix(mod1, type="instruments")
 
 ## -----------------------------------------------------------------------------
 X <- model.matrix(mod1)
+Zexc <- model.matrix(mod1, type="excludedExo")
+Xexo <- model.matrix(mod1, type="includedExo")
+Xendo <- model.matrix(mod1, type="includedEndo")
 
 ## -----------------------------------------------------------------------------
 Y <- modelResponse(mod1)
@@ -291,16 +294,6 @@ solveGmm(as(mod, "nonlinearModel"), wObj1)$theta
 solveGmm(as(mod, "functionModel"), wObj1)$theta
 
 ## -----------------------------------------------------------------------------
-theta0 <- c(theta0=0, theta1=0, theta2=0)
-mod2 <- momentModel(y~exp(theta0+theta1*x1+theta2*x2), ~x2+z1+z2, theta0, 
-                 data=simData, vcov="MDS")
-wObj0 <- evalWeights(mod2, w="ident")
-res1 <- solveGmm(mod2, wObj0, control=list(maxit=2000))
-res1
-solveGmm(mod2, wObj0, method="Nelder", control=list(maxit=2000))
-solveGmm(mod2, wObj0, algo="nlminb", control=list(iter.max=2000))
-
-## -----------------------------------------------------------------------------
 R1 <- c("theta1=theta2^2")
 rmod2 <- restModel(mod2, R1)
 res2 <- solveGmm(rmod2, wObj0, control=list(maxit=2000))
@@ -308,6 +301,35 @@ res2
 
 ## -----------------------------------------------------------------------------
 coef(rmod2, res2$theta)
+
+## -----------------------------------------------------------------------------
+algo1 <- algoObj("optim")
+algo2 <- algoObj("nlminb")
+algo3 <- algoObj("nlm")
+
+## -----------------------------------------------------------------------------
+library(nloptr)
+algo4 <- algoObj(algo="lbfgs", start="x0", fct="fn",
+                 grad="gr", solution="par", value="value",
+                 message="message", convergence="convergence")
+
+## -----------------------------------------------------------------------------
+f <- function(x) x[1]^2+x[2]^2
+g <- function(x) c(2*x[1], 2*x[2])
+minFit(algo1, start=c(1,1), fct=f, gr=g, method="BFGS", control=list(maxit=200))$solution
+## using lower and upper bounds with lbfgs:
+minFit(algo4, start=c(1,1), fct=f, gr=g, lower=c(.5,.5), upper=c(1.5,1.5))$solution
+
+## -----------------------------------------------------------------------------
+mod.nl <- as(mod, "nonlinearModel")
+wObj0 <- evalWeights(mod.nl, w="ident")
+theta0 <- c(theta1=1, theta2=2)
+## using nlminb with binding constraint
+solveGmm(mod.nl, wObj0, theta0, algo=algo2, lower=0.5)$theta
+## optim with Nelder-Mead (the default is BFGS): not too good for GMM
+solveGmm(mod.nl, wObj0, theta0, algo=algo1, method="Nelder-Mead")$theta
+## Using the lbfgs solver from the nloptr package
+solveGmm(mod.nl, wObj0, theta0, algo=algo4)$theta
 
 ## -----------------------------------------------------------------------------
 mod <- momentModel(y~x1, ~z1+z2, data=simData, vcov="MDS")
@@ -380,9 +402,9 @@ hypothesisTest(object.r=res.r)
 hypothesisTest(object.r=res.r, object.u=res)
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  hypothesisTest(object.r=res.r, object.u=res, type="LM")
-#  hypothesisTest(object.r=res.r, object.u=res, type="Wald")
-#  hypothesisTest(object.r=res.r, object.u=res, type="LR")
+# hypothesisTest(object.r=res.r, object.u=res, type="LM")
+# hypothesisTest(object.r=res.r, object.u=res, type="Wald")
+# hypothesisTest(object.r=res.r, object.u=res, type="LR")
 
 ## -----------------------------------------------------------------------------
 coef(res.r)
@@ -974,55 +996,55 @@ res <- ThreeSLS(g, h, vcov="iid", data=Klein)
 summary(res, breadOnly=TRUE)@coef
 
 ## ----extract, eval=FALSE------------------------------------------------------
-#  library(texreg)
-#  setMethod("extract", "gmmfit",
-#            function(model, includeJTest=TRUE, includeFTest=TRUE, ...)
-#                {
-#                    s <- summary(model, ...)
-#                    spec <- modelDims(model@model)
-#                    coefs <- s@coef
-#                    names <- rownames(coefs)
-#                    coef <- coefs[, 1]
-#                    se <- coefs[, 2]
-#                    pval <- coefs[, 4]
-#                    n <- model@model@n
-#                    gof <- numeric()
-#                    gof.names <- character()
-#                    gof.decimal <- logical()
-#                    if (includeJTest) {
-#                        if (spec$k == spec$q)
-#                            {
-#                                obj.fcn <- NA
-#                                obj.pv <- NA
-#                            } else {
-#                                obj.fcn <- s@specTest@test[1]
-#                                obj.pv <- s@specTest@test[3]
-#                            }
-#                        gof <- c(gof, obj.fcn, obj.pv)
-#                        gof.names <- c(gof.names, "J-test Statistics", "J-test p-value")
-#                        gof.decimal <- c(gof.decimal, TRUE, TRUE)
-#                    }
-#                    if (includeFTest) {
-#                        str <- s@strength$strength
-#                        if (is.null(str))
-#                            {
-#                                gof <- c(gof, NA)
-#                                gof.names <- c(gof.names, "First Stage F-stats")
-#                                gof.decimal <- c(gof.decimal, TRUE)
-#                            } else {
-#                                for (i in 1:nrow(str))
-#                                    {
-#                                        gof <- c(gof, str[i,1])
-#                                        gofn <- paste("First Stage F-stats(",
-#                                                      rownames(str)[i], ")", sep="")
-#                                        gof.names <- c(gof.names, gofn)
-#                                        gof.decimal <- c(gof.decimal, TRUE)
-#                                    }
-#                            }
-#                    }
-#                    tr <- createTexreg(coef.names = names, coef = coef, se = se,
-#                                       pvalues = pval, gof.names = gof.names, gof = gof,
-#                                       gof.decimal = gof.decimal)
-#                    return(tr)
-#                })
+# library(texreg)
+# setMethod("extract", "gmmfit",
+#           function(model, includeJTest=TRUE, includeFTest=TRUE, ...)
+#               {
+#                   s <- summary(model, ...)
+#                   spec <- modelDims(model@model)
+#                   coefs <- s@coef
+#                   names <- rownames(coefs)
+#                   coef <- coefs[, 1]
+#                   se <- coefs[, 2]
+#                   pval <- coefs[, 4]
+#                   n <- model@model@n
+#                   gof <- numeric()
+#                   gof.names <- character()
+#                   gof.decimal <- logical()
+#                   if (includeJTest) {
+#                       if (spec$k == spec$q)
+#                           {
+#                               obj.fcn <- NA
+#                               obj.pv <- NA
+#                           } else {
+#                               obj.fcn <- s@specTest@test[1]
+#                               obj.pv <- s@specTest@test[3]
+#                           }
+#                       gof <- c(gof, obj.fcn, obj.pv)
+#                       gof.names <- c(gof.names, "J-test Statistics", "J-test p-value")
+#                       gof.decimal <- c(gof.decimal, TRUE, TRUE)
+#                   }
+#                   if (includeFTest) {
+#                       str <- s@strength$strength
+#                       if (is.null(str))
+#                           {
+#                               gof <- c(gof, NA)
+#                               gof.names <- c(gof.names, "First Stage F-stats")
+#                               gof.decimal <- c(gof.decimal, TRUE)
+#                           } else {
+#                               for (i in 1:nrow(str))
+#                                   {
+#                                       gof <- c(gof, str[i,1])
+#                                       gofn <- paste("First Stage F-stats(",
+#                                                     rownames(str)[i], ")", sep="")
+#                                       gof.names <- c(gof.names, gofn)
+#                                       gof.decimal <- c(gof.decimal, TRUE)
+#                                   }
+#                           }
+#                   }
+#                   tr <- createTexreg(coef.names = names, coef = coef, se = se,
+#                                      pvalues = pval, gof.names = gof.names, gof = gof,
+#                                      gof.decimal = gof.decimal)
+#                   return(tr)
+#               })
 

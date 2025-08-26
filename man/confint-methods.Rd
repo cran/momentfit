@@ -25,16 +25,16 @@ Method to contruct confidence intervals for objects of class
 
 \S4method{confint}{numeric}(object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid") 
+                    fact = 3, vcov="iid", BartlettCorr = FALSE) 
 
 \S4method{confint}{data.frame}(object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid", npoints=10, 
+                    fact = 3, corr = NULL, vcov="iid", npoints=10, 
                     cores=4) 
 
 \S4method{confint}{matrix}(object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid", npoints=10, 
+                    fact = 3, corr = NULL, vcov="iid", npoints=10, 
                     cores=4) 
 
 \S4method{confint}{ANY}(object, parm, level = 0.95, \dots)
@@ -76,7 +76,11 @@ Method to contruct confidence intervals for objects of class
     region}
 
   \item{area}{If TRUE, a cnnfidence region is computed. The length of
-  \code{"parm"} must be 2 in that case.}
+    \code{"parm"} must be 2 in that case.}
+
+ \item{BartlettCorr}{Should we apply the Bartlett correction proposed by
+ DiCiccio et all (1991). Currently only available for intervals on the mean.
+ }
 
   \item{\dots}{Other arguments to pass to \code{\link{gmmFit}} or
     \code{\link{gelFit}}.}
@@ -111,5 +115,12 @@ It computes the GEL confidence interval for the mean.
 }
 
 }}
+
+\references{
+  DiCiccio, T. and Hall, P. and Romano, J. (1991), Empirical Likelihood
+  is Bartlett Correctable, \emph{The Annals of Statistics}, \bold{19},
+  2, 1053--1061.
+}
+
 \keyword{methods}
 \keyword{Confidence Intervals}

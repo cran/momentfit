@@ -162,7 +162,7 @@ setMethod("restModel", signature("snonlinearModel"),
                       R2 <- list()
                       R <- gsub("=", "~", R, fixed=TRUE)
                       for (r in R)
-                          R2 <- c(R2, as.formula(r, .GlobalEnv))
+                          R2 <- c(R2, as.formula(r))
                       R <- R2
                   } else {
                       if (!is.list(R))
@@ -342,7 +342,7 @@ setMethod("getRestrict", "rslinearModel",
 
 setMethod("getRestrict", "rsnonlinearModel",
           function(object, theta) {
-              theta <- setCoef(as(object, "snonlinearModel"), theta)              
+              theta <- setCoef(as(object, "snonlinearModel"), theta)             
               names(theta) <- NULL
               theta <- do.call("c", theta)
               dR <-numeric()
@@ -363,7 +363,8 @@ setMethod("getRestrict", "rsnonlinearModel",
                   stop("Some values in R or dR at theta are either infinite or NAN")
               if (qr(dR)$rank < length(R))
                   stop("The matrix of derivatives of the constraints is not full rank")
-              hypo <- sapply(object@R, function(r) capture.output(print(r)))
+              hypo <- sapply(object@R,
+                             function(r) capture.output(print(r, FALSE)))
               list(dR=dR, R=R, q=rep(0, nrow(dR)), hypo=hypo,
                    orig.R=object@R, orig.rhs=NULL)
           })
@@ -553,7 +554,7 @@ setMethod("Dresiduals", signature("rsnonlinearModel"),
 ## solveGmm
 
 setMethod("solveGmm", c("rslinearModel","sysMomentWeights"),
-          function (object, wObj, theta0 = NULL) 
+          function (object, wObj, theta0 = NULL, ...) 
           {
               if (object@cstSpec$crossEquRest)
               {
@@ -571,13 +572,13 @@ setMethod("solveGmm", c("rslinearModel","sysMomentWeights"),
               G <- evalDMoment(object)
               Syz <- lapply(1:length(Y), function(i) colMeans(Y[[i]]*Z[[i]]))
               Syz <- do.call("c", Syz)
-              G <- momentfit:::.GListToMat(G)
+              G <- .GListToMat(G)
               T1 <- quadra(wObj, G)
               T2 <- quadra(wObj, G, Syz)
               theta <- -solve(T1, T2)
               spec <- modelDims(object)
-              theta <- momentfit:::.tetReshape(theta, object@eqnNames, spec$parNames)
-              list(theta = theta, convergence = NULL)
+              theta <- .tetReshape(theta, object@eqnNames, spec$parNames)
+              list(theta = theta, convergence = list())
           })
 
 

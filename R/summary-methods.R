@@ -12,17 +12,26 @@ setMethod("print", "summaryGmm",
                                 "twostep","iter","cue","onestep","tsls", "eval","mde"),
                               ncol=2)              
               type <- ntype[match(x@type, ntype[, 2]), 1]
+              if (is.na(type))
+                  type <- x@type
               spec <- modelDims(x@model)
               if (spec$q == spec$k) 
                   type <- "One-Step, Just-Identified"
               cat("\nEstimation: ", type, "\n")
-              if (!is.null(x@convergence)) 
-                  cat("Convergence Optim: ", x@convergence, "\n")
-              if (!is.null(x@convIter)) 
-                  cat("Convergence Iteration: ", x@convIter, "\n")
-              if (x@type == "iter")
-                  cat("Number of iterations: ", x@niter, "\n")
-              if (length(x@wSpec) > 0)
+              if (nrow(x@coef))
+              {
+                  if (length(x@convergence))
+                  {
+                      cat("Convergence code: ", x@convergence$code,
+                          " (see help(", x@convergence$algo, "))\n", sep="")
+                      if (!is.null(x@convergence$message))
+                          cat("Convergence message: ", x@convergence$message, "\n", sep="")
+                  }
+                  if (!is.null(x@convIter)) 
+                      cat("Convergence Iteration: ", x@convIter, "\n")
+                  if (x@type == "iter")
+                      cat("Number of iterations: ", x@niter, "\n")
+                  if (length(x@wSpec) > 0)
                   {
                       if (is.numeric(x@model@vcovOptions$bw))
                           cat("Fixed Bandwidth: ", round(x@wSpec$bw, 3), "\n", sep="")
@@ -30,21 +39,24 @@ setMethod("print", "summaryGmm",
                           cat(x@model@vcovOptions$bw,
                               " Bandwidth: ", round(x@wSpec$bw, 3), "\n", sep="")
                   }
-              if (x@breadOnly)
+                  if (x@breadOnly)
                   {
                       cat("vcov type: Bread \n")
                   } else {
                       cat("Sandwich vcov: ", x@sandwich, "\n", sep="")
                       if (x@sandwich && x@model@vcov == "MDS")
-                          {
-                              v <- ifelse(x@df.adj, "HC1", "HC0")
-                              cat("Type of sandwich HCCM :", v, "\n", sep="")
-                          } else if (x@sandwich && x@model@vcov == "HAC") {
-                              cat("Type of sandwich HAC: as specified in the model definition\n")
-                          }
+                      {
+                          v <- ifelse(x@df.adj, "HC1", "HC0")
+                          cat("Type of sandwich HCCM :", v, "\n", sep="")
+                      } else if (x@sandwich && x@model@vcov == "HAC") {
+                          cat("Type of sandwich HAC: as specified in the model definition\n")
+                      }
                   }
-              cat("coefficients:\n")
-              printCoefmat(x@coef, digits=digits, ...)
+                  cat("coefficients:\n")
+                  printCoefmat(x@coef, digits=digits, ...)
+              } else {
+                  cat("coefficients:\n\tNo estimated coefficients\n")
+              }
               print(x@specTest)
               str <- x@strength
               if (!is.null(str$strength)) {
@@ -97,8 +109,14 @@ setMethod("print", "summarySysGmm",
                                       "\n", sep = "")
                               else cat(x@model@vcovOptions$bw, " Bandwidth: ",
                                        round(x@wSpec$bw, 3), "\n", sep = "")
-                              if (!is.null(x@convergence)) 
-                                  cat("Convergence Optim: ", x@convergence, "\n")
+                              if (length(x@convergence))
+                              {
+                                  cat("Convergence code: ", x@convergence$code,
+                                      " (see help(", x@convergence$algo, "))\n", sep="")
+                                  if (!is.null(x@convergence$message))
+                                      cat("Convergence message: ",
+                                          x@convergence$message, "\n", sep="")
+                              }
                           }
                       }
                   if (x@breadOnly) {
@@ -132,8 +150,15 @@ setMethod("print", "summarySysGmm",
                                       else cat(x@model@bw, " Bandwidth: ",
                                                round(x@wSpec$bw, 3), "\n", sep = "")
                                   }
-                                  if (!is.null(x@convergence)) 
-                                      cat("Convergence Optim: ", x@convergence[i], "\n")
+                                  if (length(x@convergence[[i]]))
+                                  {
+                                      cat("Convergence code: ", x@convergence[[i]]$code,
+                                          " (see help(", x@convergence[[i]]$algo,
+                                          "))\n", sep="")
+                                      if (!is.null(x@convergence[[i]]$message))
+                                          cat("Convergence message: ",
+                                              x@convergence[[i]]$message, "\n", sep="")
+                                  }
                               }
                           printCoefmat(x@coef[[i]], digits = digits, signif.legend=sleg, ...)
                           if (!is.null(str$strength)) {

@@ -2,15 +2,20 @@
 \docType{methods}
 \alias{vcovHAC-methods}
 \alias{vcovHAC,momentModel-method}
+\alias{vcovHAC,sysModel-method}
 \title{ ~~ Methods for Function \code{vcovHAC} in Package \pkg{sandwich} ~~}
 \description{
- Methods to compute the HAC covariance matrix of the moment matrix ~~
+ Methods to compute the HAC covariance matrix of the moment objects ~~
 }
 \section{Methods}{
 \describe{
 
 \item{\code{signature(x = "momentModel")}}{
 }
+
+\item{\code{signature(x = "sysModel")}}{
+}
+
 }}
 
 \examples{

@@ -32,7 +32,8 @@
   \item{object}{An object of class \code{"momentModel"} or
     \code{"sysModel"}.}  
   \item{R}{Either a matrix or a vector of characters for
-    linear models and a list of formulas for nonlinear models}
+    linear models and a list of formulas for nonlinear models. See
+    details below.}
   \item{rhs}{The right hand side of the linear restrictions. It is
     ignored for nonlinear models.}
 }
@@ -79,6 +80,36 @@ Method for object of class \code{formulaModel}.
 Method for object of class \code{formulaGel}.
 }
 }}
+
+\details{
+For linear models and linear restrictions, R is in general a matrix. In
+that case, the restrictions are in the form \eqn{R\theta=q}, where
+\eqn{\theta} is the vector of coefficients. It is also possible, for
+linear models, to define \code{R} as a character vector with the
+restrictions being expressed explicitly. In that case, the names of the
+coefficients are the names of the variables. For example, if we want the
+sum of the coefficients of the variables \code{x1} and \code{x2} to be
+equal to 0, we can set \code{R} to "x1+x2=0".
+
+Nonlinear restrictions are not allowed for linear models. However, it is
+possible by converting linear models into nonlinear models before
+imposing the nonlinear restrictions. This is done by using the \code{as}
+method. For example, we can convert the linear model \code{mod} to a
+nonlinear model using the command \code{mod <- as(mod, "nonlinearModel")}.
+
+For all other types (nonlinearModel, formulaModel and functionModel),
+restrictions in \code{R} must be in the form: one coefficient as a
+function of the others. We can express the restriction as a formula (or
+a list of \code{formula} for more than one restriction) or a character
+vector. Note that it is the names of the coefficients that appear in the
+\code{R}, not the names of the variables. For example, the following is
+a valid restriction: "theta1=theta2*theta3+1". Although the following is
+the same restriction, it is not a valid entry for \code{R}:
+"theta1-theta2*theta3=1". This condition is part of the validity test
+when restricted model are created. If it is not satisfied, an error
+message is returned.
+}
+
 \examples{
 data(simData)
 theta <- c(beta0=1,beta1=2)

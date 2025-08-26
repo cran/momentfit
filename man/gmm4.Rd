@@ -57,7 +57,7 @@ gmm4(g, x, theta0 = NULL, grad = NULL,
   provide this function when it is possible. This gradient is used to
   compute the asymptotic covariance matrix of \eqn{\hat{\theta}} and to
   obtain the analytical gradient of the objective function if the method
-  is set to "CG" or "BFGS" in \code{\link{optim}} and if "type" is not
+  is set to "CG" or "BFGS" in \code{\link[stats]{optim}} and if "type" is not
   set to "cue". If "g" is a formula, the gradiant is not required (see
   the details below).}
 
@@ -72,7 +72,7 @@ gmm4(g, x, theta0 = NULL, grad = NULL,
   ready to make that assumption. The option "TrueFixed" is used only
   when the matrix of weights is provided and it is the optimal one. For
   type \code{CL}, clustered covariance matrix is computed. The options
-  are then included in \code{vcovOptions} (see \code{\link{meatCL}}).}
+  are then included in \code{vcovOptions} (see \code{\link[sandwich]{meatCL}}).}
 
   \item{initW}{How should be compute the initial coefficient vector in
     the first. It only makes a difference for linear models for which
@@ -99,13 +99,13 @@ gmm4(g, x, theta0 = NULL, grad = NULL,
     coefficients. See \code{\link{restModel}} for more details.}
 
   \item{vcovOptions}{A list of options for the covariance matrix of the
-    moment conditions. See \code{\link{vcovHAC}} for the default values.}
+    moment conditions. See \code{\link[sandwich]{vcovHAC}} for the default values.}
 
   \item{survOptions}{If needed, a list with the type of survey weights and
     the weights as a numeric vector, data.frame or formula. The type is either
     \code{"sampling"} or \code{"fequency"}.}  
  
-  \item{\dots}{Arguments to pass to \code{\link{optim}} when the model
+  \item{\dots}{Arguments to pass to \code{\link[stats]{optim}} when the model
     is nonlinear.}
 }
 

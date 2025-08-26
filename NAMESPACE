@@ -16,10 +16,11 @@ importFrom("stats", "ar", "as.formula", "model.matrix","vcov",
            "D", "numericDeriv", "sd", "optim", "lm", "pf", "coef", "update",
            "fitted", "lm.fit", "pchisq", "pnorm", "printCoefmat", "anova",
            "model.frame", "reformulate", "formula", "nlminb", "kernapply",
-           "constrOptim", "kernel", "confint", "qnorm", "uniroot", "getCall", "qchisq")
+           "constrOptim", "kernel", "confint", "qnorm", "uniroot", "getCall", "qchisq", "optimize",
+           "integrate", "rnorm")
 importFrom("sandwich", "vcovHAC", "estfun","kernHAC","vcovCL", "meatCL",
            "bread","bwAndrews","bwNeweyWest","weightsAndrews",
-           "weightsLumley", "vcovHC")
+           "weightsLumley", "vcovHC", "meatHAC")
 
 ### S4 Methods and Classes
 exportClasses("nonlinearModel", "linearModel", "functionModel", "momentModel",
@@ -32,7 +33,8 @@ exportClasses("nonlinearModel", "linearModel", "functionModel", "momentModel",
               "rsysModel", "formulaModel","rfunctionModel", "sSpec",
               "summaryGmm", "specTest", "confint", "mconfint",
               "hypothesisTest", "stsls", "sgmmfit", "gelfit", "summaryGel",
-              "tsls")
+              "tsls", "lsefit", "kclassfit", "summaryKclass",
+              "minAlgo", "minAlgoStd", "minAlgoNlm")
 
 exportMethods(print, show, kernapply, coef,  model.matrix, bread, summary,
               residuals, "[", vcovHAC, subset, update, vcov, plot, confint, merge)
@@ -43,7 +45,8 @@ export(momentModel, modelResponse, evalMoment, Dresiduals, modelDims, evalDMomen
        printRestrict, restModel, getRestrict, gmm4, sysMomentModel, ThreeSLS,
        rhoET, rhoEL, rhoEEL, rhoHD, Wu_lam, EEL_lam, REEL_lam, getLambda, 
        solveGel, rhoETEL, rhoETHD, ETXX_lam, gelFit, evalGel, getImpProb,
-       evalGelObj, momFct, gel4, setCoef)
+       evalGelObj, momFct, gel4, setCoef, lse, getK, kclassfit, CDtest,
+       SYTables, SWtest, MOPtest, LewMertest, minFit, algoObj)
  
 ###  S3 methods ###
 

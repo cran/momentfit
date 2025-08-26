@@ -17,7 +17,7 @@
 }
 \usage{
 \S4method{model.matrix}{linearModel}(object,
-type=c("regressors","instruments"))
+type=c("regressors","instruments","excludedExo", "includedExo", "includedEndo")) 
 \S4method{model.matrix}{rlinearModel}(object,
 type=c("regressors","instruments"))
 \S4method{model.matrix}{nonlinearModel}(object,

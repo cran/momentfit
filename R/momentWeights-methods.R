@@ -1,73 +1,53 @@
 ####### Methods for gmmWeights objects
 #####################################
 
-
 ################ method to compute X'WX where W is the object weights #############
 
 setGeneric("quadra", function(w, x, y, ...) standardGeneric("quadra"))
 
 setMethod("quadra", c("momentWeights", "matrixORnumeric", "missing"),
-          function(w, x, y) {
+          function(w, x, y, genInv=FALSE) {
               x <- as.matrix(x)
               if (is.character(w@w))
-                  {
-                      obj <- crossprod(x)
-                  } else {
-                      if (w@type == "weights")
-                          {
-                              obj <- crossprod(x,w@w)%*%x
-                          } else if (w@type == "vcov") {
-                              obj <- crossprod(x, solve(w@w,x))
-                          } else if (w@type == "chol") {
-                              obj <- crossprod(forwardsolve(t(w@w),x))
-                          } else {
-                              R <- qr.R(w@w)
-                              if (!all(w@w$pivot==(1:ncol(R))))
-                                  {
-                                      iw <- matrix(NA, ncol(R), ncol(R))
-                                      iw[w@w$pivot, w@w$pivot] <- chol2inv(R)
-                                      obj <- crossprod(x,iw)%*%x
-                                  } else {
-                                      obj <- crossprod(forwardsolve(t(R),x))
-                                  }
-                          }
-                  }
-              if (all(dim(obj)==1))
-                  c(obj)
-              else
-                  obj                  
-          })
-
-setMethod("quadra", c("momentWeights", "matrixORnumeric", "matrixORnumeric"),
-          function(w, x, y) {
-              x <- as.matrix(x)
-              y <- as.matrix(y)
-              if (is.character(w@w))
-              {                  
-                  obj <- crossprod(x,y)
+              {
+                  obj <- crossprod(x)
               } else {
                   if (w@type == "weights")
+                  {
+                      obj <- crossprod(x,w@w)%*%x
+                  } else {
+                      piv <- switch(w@type,
+                                    chol = attr(w, "pivot"),
+                                    qr = w@w$pivot,
+                                    NULL)
+                      if (genInv)
                       {
-                          obj <- crossprod(x,w@w)%*%y
-                      } else if (w@type == "vcov") {
-                          obj <- crossprod(x, solve(w@w,y))
-                      } else if (w@type == "chol") {
-                          T1 <- forwardsolve(t(w@w), x)
-                          T2 <- forwardsolve(t(w@w), y)
-                          obj <- crossprod(T1,T2)
+                          w2 <- switch(w@type,
+                                       chol = crossprod(w@w),
+                                       qr = crossprod(qr.R(w@w)),
+                                       w@w)
+                          iw <- MPinv(w2)
+                          if (!is.null(piv))
+                              iw[piv,piv] <- iw
+                          obj <- crossprod(x, iw) %*% x
                       } else {
-                          R <- qr.R(w@w)
-                          if (!all(w@w$pivot==(1:ncol(R))))
+                          if (w@type == "vcov") {
+                              obj <- crossprod(x, solve(w@w,x))
+                          } else {
+                              w2 <-  switch(w@type,
+                                            chol = w@w,
+                                            qr = qr.R(w@w))
+                              if (!all(piv==(1:ncol(w2))))
                               {
-                                  iw <- matrix(NA, ncol(R), ncol(R))
-                                  iw[w@w$pivot, w@w$pivot] <- chol2inv(R)
-                                  obj <- crossprod(x,iw)%*%y
+                                  iw <-  chol2inv(w2)
+                                  iw[piv, piv] <- iw
+                                  obj <- crossprod(x,iw)%*%x
                               } else {
-                                  T1 <- forwardsolve(t(R), x)
-                                  T2 <- forwardsolve(t(R), y)
-                                  obj <- crossprod(T1,T2)
+                                  obj <- crossprod(forwardsolve(t(w2),x))
                               }
+                          }
                       }
+                  }
               }
               if (all(dim(obj)==1))
                   c(obj)
@@ -75,30 +55,96 @@ setMethod("quadra", c("momentWeights", "matrixORnumeric", "matrixORnumeric"),
                   obj                  
           })
 
+setMethod("quadra", c("momentWeights", "matrixORnumeric", "matrixORnumeric"),
+          function(w, x, y, genInv=FALSE) {
+              x <- as.matrix(x)
+              y <- as.matrix(y)
+              if (is.character(w@w))
+              {
+                  obj <- crossprod(x,y)
+              } else {
+                  if (w@type == "weights")
+                  {
+                      obj <- crossprod(x,w@w)%*%y
+                  } else {
+                      piv <- switch(w@type,
+                                    chol = attr(w, "pivot"),
+                                    qr = w@w$pivot,
+                                    NULL)
+                      if (genInv)
+                      {
+                          w2 <- switch(w@type,
+                                       chol = crossprod(w@w),
+                                       qr = crossprod(qr.R(w@w)),
+                                       w@w)
+                          iw <- MPinv(w2)
+                          if (!is.null(piv))
+                              iw[piv,piv] <- iw
+                          obj <- crossprod(x, iw) %*% y
+                      } else {
+                          if (w@type == "vcov") {
+                              obj <- crossprod(x, solve(w@w,y))
+                          } else {
+                              w2 <-  switch(w@type,
+                                            chol = w@w,
+                                            qr = qr.R(w@w))                   
+                              if (!all(piv==(1:ncol(w2))))
+                              {
+                                  iw <- chol2inv(w2)
+                                  iw[piv, piv] <- iw
+                                  obj <- crossprod(x,iw)%*%y
+                              } else {
+                                  T1 <- forwardsolve(t(w2), x)
+                                  T2 <- forwardsolve(t(w2), y)
+                                  obj <- crossprod(T1,T2)
+                              }
+                          }
+                      }
+                  }
+              }
+              if (all(dim(obj)==1))
+                  c(obj)
+              else
+                  obj                                
+          })
+
 setMethod("quadra", c("momentWeights", "missing", "missing"),
-          function(w, x, y) {
+          function(w, x, y, genInv=FALSE) {
               if (is.character(w@w))
               {                  
                   obj <- "Identity"
               } else {
                   if (w@type == "weights")
+                  {
+                      obj <- w@w
+                  } else {
+                      piv <- switch(w@type,
+                                    chol = attr(w, "pivot"),
+                                    qr = w@w$pivot,
+                                    NULL)
+                      if (genInv)
                       {
-                          obj <- w@w
-                      } else if (w@type == "vcov") {
-                          obj <- solve(w@w)
-                      } else if (w@type == "chol") {
-                          obj <- chol2inv(w@w)
+                          w2 <- switch(w@type,
+                                       chol = crossprod(w@w),
+                                       qr = crossprod(qr.R(w@w)),
+                                       w@w)
+                          obj <- MPinv(w2)
+                          if (!is.null(piv))
+                              obj[piv,piv] <- obj
                       } else {
-                          R <- qr.R(w@w)
-                          if (!all(w@w$pivot==(1:ncol(R))))
-                              {
-                                  iw <- matrix(NA, ncol(R), ncol(R))
-                                  iw[w@w$pivot, w@w$pivot] <- chol2inv(R)
-                                  obj <- iw
-                              } else {
-                                  obj <- chol2inv(R)
-                              }
+                          w2 <- switch(w@type,
+                                       chol = w@w,
+                                       qr = qr.R(w@w),
+                                       w@w)
+                          if (w@type == "vcov")
+                          {
+                              obj <- solve(w2)
+                          } else {
+                              obj <- chol2inv(w2)
+                              obj[piv, piv] <- obj
+                          }
                       }
+                  }
               }
               if (all(dim(obj)==1))
                   c(obj)

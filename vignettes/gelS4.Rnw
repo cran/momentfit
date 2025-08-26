@@ -968,8 +968,8 @@ res <- confint(simData, c("x2","y"), npoints=20)
 res
 @ 
 
-The following is not run because it creates some misterious error when
-the package is checked. Beside that, it works perfectly. Try it.
+We can plot the confidence region using the \textit{plot} method
+associated with the object created by \textit{confint}:
 
 \begin{center}
 \begin{minipage}{.7\textwidth}

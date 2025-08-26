@@ -18,7 +18,7 @@ It is created by \code{link{summary-methods}}.
     \item{\code{model}:}{Object of class \code{"momentModel"} ~~ }
     \item{\code{sandwich}:}{Object of class \code{"logical"} ~~ }
     \item{\code{type}:}{Object of class \code{"character"} ~~ }
-    \item{\code{convergence}:}{Object of class \code{"numericORNULL"} ~~ }
+    \item{\code{convergence}:}{Object of class \code{"list"} ~~ }
     \item{\code{convIter}:}{Object of class \code{"numericORNULL"} ~~ }
     \item{\code{wSpec}:}{Object of class \code{"list"} ~~ }
     \item{\code{niter}:}{Object of class \code{"integer"} ~~ }

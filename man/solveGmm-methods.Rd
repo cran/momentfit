@@ -18,20 +18,22 @@ The main function to get the GMM solution for a given weighting matrix.
 ...)
 
 \S4method{solveGmm}{allNLModel,momentWeights}(object, wObj, theta0=NULL,
-algo=c("optim","nlminb"), ...)
+ algo=algoObj("optim"), ...)
 
 \S4method{solveGmm}{rnonlinearModel,momentWeights}(object, wObj, theta0=NULL,
 ...)
 
-\S4method{solveGmm}{slinearModel,sysMomentWeights}(object, wObj, theta0=NULL)
+\S4method{solveGmm}{slinearModel,sysMomentWeights}(object, wObj,
+theta0=NULL, ...)
 
-\S4method{solveGmm}{rslinearModel,sysMomentWeights}(object, wObj, theta0=NULL)
+\S4method{solveGmm}{rslinearModel,sysMomentWeights}(object, wObj,
+theta0=NULL, ...)
 
 \S4method{solveGmm}{snonlinearModel,sysMomentWeights}(object, wObj,
-theta0=NULL, \dots)
+theta0=NULL, algo=algoObj("optim"), \dots)
 
 \S4method{solveGmm}{sfunctionModel,sysMomentWeights}(object, wObj,
-theta0=NULL, \dots)
+theta0=NULL, algo=algoObj("optim"), \dots)
 }
 \arguments{
   \item{object}{A moment-based model}
@@ -40,7 +42,9 @@ theta0=NULL, \dots)
   used. For system of equations, it is a list of vectors.}
   \item{wObj}{An object of class \code{"momentWeights"} or
     \code{"sysMomentWeights"}.}
-  \item{algo}{The numerical algorithm to minimize the objective function.}
+  \item{algo}{The numerical algorithm to minimize the objective
+    function. It must be a class \code{\link{minAlgo}} object created by
+  \code{\link{algoObj}}.}
   \item{\dots}{Arguments to pass to \code{\link{optim}}.}
   }
 \section{Methods}{

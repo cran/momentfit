@@ -62,7 +62,7 @@
 <<echo=FALSE>>=
 library(knitr)
 opts_chunk$set(size='footnotesize')
-@ 
+@
 
 \newpage
 \tableofcontents
@@ -525,10 +525,15 @@ D() from the \textit{utils} package.
 Z <- model.matrix(mod1, type="instruments")
 @ 
 
-For ``linearModel'' only, it can be used to get the matrix of regressors $X$
+For ``linearModel'' only, it can be used to get the matrix of
+regressors, of excluded exogenous variables, of included exogenous and
+of included endogenous variables:
 
 <<>>=
 X <- model.matrix(mod1)
+Zexc <- model.matrix(mod1, type="excludedExo")
+Xexo <- model.matrix(mod1, type="includedExo")
+Xendo <- model.matrix(mod1, type="includedEndo")
 @ 
 
 \item \textit{modelResponse}: For linear model only, it returns the
@@ -549,7 +554,7 @@ mod3[-1]
 @   
 
 \item \textit{as}: ``linearModel'' can be converted into a
-  ``nonlinearModel'' or ``functionModel''. The former is userful when we
+  ``nonlinearModel'' or ``functionModel''. The former is useful when we
   impose nonlinear restrictions on the coefficients.
 
 <<>>=
@@ -990,25 +995,26 @@ second argument. For ``nonlinearModel'', ``functionModel'' and
 first is ``theta0'', which is the starting value to pass to the
 minimization algorithm. If not provided, the one stored in the model
 object is used. The second is ``algo'' which specifies which algorithm
-to use to minimize the objective function. By default, \textit{optim}
-is used. The only other choice for now is \textit{nlminb}. The default
-method for \textit{optim} is ``BFGS'', but all arguments of the
-algorithm can be modified by specifying them directly in the call of
-\textit{solveGmm}.
+to use to minimize the objective function. It has to be an object of
+class ``minAlgo'', which will be explained in more details in the next
+subsection.  By default, the ``minAlgo'' class object is defined for
+\textit{optim} and the default method is BFGS which seems to be
+working better with GMM. The arguments of the algorithm can be
+modified by specifying them directly in the call of \textit{solveGmm}.
 
 The method simply minimizes $\bar{g}(\theta)'W\bar{g}(\theta)$ for a
 given $W$. For ``linearModel'' classes, the analytical solution is
 used. It is therefore the prefered class to use when it is
 possible. For all other classes, the solution is obtained by the
 selected algorithm. For ``nonlinearModel'' and ``formulaModel'', the
-gradian of the objective function, $2nG'W\bar{g}$ is passed to the
+gradient of the objective function, $2nG'W\bar{g}$ is passed to the
 algorithm using the analytical derivative of the moment conditions
 (the \textit{evalDMoment} method). For ``functionGMM'' classes, $G$ is
 computed numerically using \textit{numericDeriv} unless $dfct$ was
 provided when the object was created. The \textit{solveGmm} method
-returns a vector of coefficients and a convergence code. The latter is
-null for linear models and is the code returned by the algorithm
-otherwise.
+returns a vector of coefficients, a convergence code and a message
+when it exists for the selected algorithm. The last two elements are
+NULL for linear models.
 
 Consider the following linear model:
 
@@ -1042,19 +1048,6 @@ solveGmm(as(mod, "nonlinearModel"), wObj1)$theta
 solveGmm(as(mod, "functionModel"), wObj1)$theta
 @ 
 
-Consider now the above nonlinear model that we repeat here.
-
-<<>>=
-theta0 <- c(theta0=0, theta1=0, theta2=0)
-mod2 <- momentModel(y~exp(theta0+theta1*x1+theta2*x2), ~x2+z1+z2, theta0, 
-                 data=simData, vcov="MDS")
-wObj0 <- evalWeights(mod2, w="ident")
-res1 <- solveGmm(mod2, wObj0, control=list(maxit=2000))
-res1
-solveGmm(mod2, wObj0, method="Nelder", control=list(maxit=2000))
-solveGmm(mod2, wObj0, algo="nlminb", control=list(iter.max=2000))
-@ 
-
 Notice that there is no signature for restricted models. However, it
 is not needed since they inherit from their unrestricted counterpart
 and the same procedure is needed to estimate them. Suppose, for
@@ -1072,6 +1065,86 @@ The unrestricted version can be extracted using \textit{coef}.
 <<>>=
 coef(rmod2, res2$theta)
 @ 
+
+\subsubsection{Using a different optimization routine}
+
+The function \textit{optim}, is not the only option for minimizing a
+function numerically. Other options exist in base R, like
+\textit{nlminb} and \textit{nlm}, and many packages offer other
+alternatives. For some high dimensional and/or highly nonlinear
+models, it may be worth trying other solvers, because \textit{optim}
+may sometimes be unreliable. For example, you can find a list of
+recommended optimization solvers on
+\href{https://hwborchers.lima-city.de/Optimist/selectedSolvers/}{Hans
+  W Borchers} page. The problem with the different solvers is that
+they differ in terms of inputs and outputs. My solution was to create
+a new class of solvers with associated methods that take the same
+arguments and returns the same values. The class is created by
+\textit{algoObj}. For the build-in solvers we only need to input the
+function names. For example, we can create the following objects:
+
+<<>>=
+algo1 <- algoObj("optim")
+algo2 <- algoObj("nlminb")
+algo3 <- algoObj("nlm")
+@ 
+
+If you look at the help files, you will see that they are quite
+different both in terms of their arguments and output values. For
+example, \textit{nlm} requires the gradient to be returned by the main
+function as an attribute while for the other two, the function and
+gradient are provided separately.
+
+For any other algorithm, we need to specify the name of the arguments
+that represent the function, the gradient and the starting vector, and
+the names of the output elements that represent the solution, the
+function value, the convergence code and convergence message. Elements
+that are missing from the solver are set to NA. For example, we can
+create an object for the solver \textit{lbfgs} of the nloptr package
+as follows (\cite{nloptr})
+
+<<>>=
+library(nloptr)
+algo4 <- algoObj(algo="lbfgs", start="x0", fct="fn",
+                 grad="gr", solution="par", value="value",
+                 message="message", convergence="convergence")
+@ 
+
+Note that \textit{algoObj} checks if the solver exist and it has
+start, fct and grad as arguments. Therefore, the package must be
+loaded before creating the object. The method \textit{minFit} can be
+used to minimize any function using any algorithm (note how we can
+modify the parameters of the solver by adding the appropriate
+arguments):
+
+<<>>=
+f <- function(x) x[1]^2+x[2]^2
+g <- function(x) c(2*x[1], 2*x[2])
+minFit(algo1, start=c(1,1), fct=f, gr=g, method="BFGS", control=list(maxit=200))$solution
+## using lower and upper bounds with lbfgs:
+minFit(algo4, start=c(1,1), fct=f, gr=g, lower=c(.5,.5), upper=c(1.5,1.5))$solution
+@ 
+
+It is not necessary to understand how these class objects and methods
+work. You just need to know that it allows us to use any algorithm
+that we want to estimate the nonlinear models. Just make sure you use
+a reliable solver. The following show examples with ``mod'' converted
+into a nonlinnear model. The arguments to control the solver can be
+added to \textit{solveGmm} (the function and gradient are defined in
+\textit{solveGmm}):
+
+<<>>=
+mod.nl <- as(mod, "nonlinearModel")
+wObj0 <- evalWeights(mod.nl, w="ident")
+theta0 <- c(theta1=1, theta2=2)
+## using nlminb with binding constraint
+solveGmm(mod.nl, wObj0, theta0, algo=algo2, lower=0.5)$theta
+## optim with Nelder-Mead (the default is BFGS): not too good for GMM
+solveGmm(mod.nl, wObj0, theta0, algo=algo1, method="Nelder-Mead")$theta
+## Using the lbfgs solver from the nloptr package
+solveGmm(mod.nl, wObj0, theta0, algo=algo4)$theta
+@ 
+
 
 \subsubsection{GMM Estimation: the \textit{gmmFit} method} \label{sec:momentmodel-gmmfit}
 

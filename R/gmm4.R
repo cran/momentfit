@@ -1,5 +1,5 @@
 ################### the main gmm functions ###################
-########## These functions ar to avoid having to builf model objects
+########## These functions are to avoid having to build model objects
 
 gmm4 <- function (g, x, theta0 = NULL, grad = NULL, 
                   type = c("twostep", "iter", "cue", "onestep"),

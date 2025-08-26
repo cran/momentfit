@@ -146,7 +146,7 @@ setClass("specTest", representation(test = "matrix", testname="character"))
 
 ## gmmfit
 
-setClass("gmmfit", representation(theta = "numeric", convergence = "numericORNULL",
+setClass("gmmfit", representation(theta = "numeric", convergence = "list",
                                   convIter="numericORNULL",call="callORNULL",
                                   type="character", wObj="momentWeights",niter="integer",
                                   efficientGmm="logical", model="momentModel"))
@@ -156,10 +156,9 @@ setClass("gmmfit", representation(theta = "numeric", convergence = "numericORNUL
 
 setClass("summaryGmm", representation(coef="matrix", specTest = "specTest",
                                       strength="list", model="momentModel",sandwich="logical",
-                                      type="character", convergence = "numericORNULL",
+                                      type="character", convergence = "list",
                                       convIter="numericORNULL", wSpec="list",niter="integer",
                                       df.adj="logical", breadOnly="logical"))
-
 
 ## hypothesisTest
 
@@ -173,7 +172,7 @@ setClass("hypothesisTest", representation(test="numeric", hypothesis="character"
 setClass("summarySysGmm",
          representation(coef="list", specTest = "specTest",
                         strength="list", model="sysModel",sandwich="logical",
-                        type="character", convergence = "numericORNULL",
+                        type="character", convergence = "list",
                         convIter="numericORNULL", wSpec="list",niter="integer",
                         df.adj="logical", breadOnly="logical"))
 
@@ -197,7 +196,7 @@ setClass("mconfint",
 
 ### system GMM fit
 
-setClass("sgmmfit", representation(theta = "list", convergence = "numericORNULL",
+setClass("sgmmfit", representation(theta = "list", convergence = "list",
                                    convIter="numericORNULL",call="callORNULL",
                                    type="character", wObj="sysMomentWeights",niter="integer",
                                    efficientGmm="logical", model="sysModel"))
@@ -209,7 +208,10 @@ setClass("stsls", contains="sgmmfit")
 setClass("gelfit", representation(theta = "numeric", convergence = "numeric",
                                   lambda = "numeric", lconvergence = "numeric",
                                   call="callORNULL", gelType="list", vcov="list",
-                                  model="momentModel", restrictedLam="integer"))
+                                  model="momentModel", restrictedLam="integer",
+                                  argsCall="list"),
+         prototype=list(argsCall=list(iniTheta="gmm", theta0=NULL, lambda0=NULL,
+                                      vcov=FALSE)))
 
 setClass("summaryGel", representation(coef="matrix", specTest = "specTest",
                                       model="momentModel", lambda="matrix",
@@ -217,6 +219,38 @@ setClass("summaryGel", representation(coef="matrix", specTest = "specTest",
                                       impProb="list", gelType="list",
                                       restrictedLam="integer"))
 
+## lsefit classes
+
+setClass("lsefit", slots=list(model="linearModel"), contains="lm")
+
+## K-Class related classes
+
+setClass("kclassfit", slots = list(kappa = "numeric",
+                                   method = "character", origModel='linearModel'),
+         contains="gmmfit")
+
+setClass("summaryKclass", slots = list(kappa = "numeric",
+                                       method = "character", origModel='linearModel'),
+         contains="summaryGmm")
+
+
+## Classes for minimization solver
+
+setClass("minAlgoStd", representation(algo="character", start="character", fct="character",
+                                   grad="character", solution="character", value="character",
+                                   message="character", convergence="character"),
+         prototype=list(algo="optim", start="par", fct="fn", grad="gr", solution="par",
+                        value="value", message="message", convergence="convergence"))
+
+setClass("minAlgoNlm", representation(algo="character", start="character", fct="character",
+                                      solution="character",
+                                      value="character",
+                                      message="character", convergence="character"),
+         prototype=list(algo="nlm", start="p", fct="f",
+                        solution="estimate", value="minimum", message=as.character(NA),
+                        convergence="code"))
+### They are all common
+setClassUnion("minAlgo", c("minAlgoStd", "minAlgoNlm"))
 
 ## class converted
 
@@ -292,31 +326,24 @@ setAs("slinearModel", "linearModel",
           neqn <- length(eqnNames)
           datX <- lapply(1:neqn,
                          function(i) {
-                             v <- from@varNames[[i]]
-                             chk <- "(Intercept)" %in% v
-                             v <- v[v!="(Intercept)"]
-                             X <- from@data[,v, drop=FALSE]
-                             colnames(X) <- paste(eqnNames[[i]],".", v, sep="")
+                             X <- model.matrix(from@modelT[[i]], from@data)
+                             chk <- attr(from@modelT[[i]], "intercept")==1
                              if (chk)
-                                 {
-                                  X <- cbind(1, X)
-                                  colnames(X)[1]<-paste(eqnNames[[i]], ".Intercept", sep="")
-                                 }
+                                 colnames(X)[1] <- "Intercept"
+                             colnames(X) <- paste(eqnNames[[i]],".", colnames(X), sep="")
                              X})
           datZ <- lapply(1:neqn,
                          function(i) {
-                             v <- all.vars(from@instT[[i]])
+                             Z <- model.matrix(from@instT[[i]], from@data)
                              chk <- attr(from@instT[[i]], "intercept")==1
-                             Z <- from@data[,v, drop=FALSE]
-                             colnames(Z) <- paste(eqnNames[[i]],".", v, sep="")
                              if (chk)
-                                 {
-                                  Z <- cbind(1, Z)
-                                  colnames(Z)[1]<-paste(eqnNames[[i]], ".Intercept", sep="")
-                                 }
+                                 colnames(Z)[1] <- "Intercept"
+                             colnames(Z) <- paste(eqnNames[[i]],".", colnames(Z), sep="")
                              Z})
           nZ <- do.call("c", lapply(datZ, colnames))
+          nZ <- gsub(":", ".", nZ)
           nX <- do.call("c", lapply(datX, colnames))
+          nX <- gsub(":", ".", nX)          
           datZ <- .GListToMat(datZ)
           datX <- .GListToMat(datX)
           Y <- do.call("c", modelResponse(from))
@@ -326,9 +353,9 @@ setAs("slinearModel", "linearModel",
           dat <- dat[,unique(colnames(dat))]
           dat <- data.frame(dat, row.names=1:nrow(datZ))
           g <- paste("Y~", paste(nX, collapse="+"), "-1")
-          g <- formula(g, .GlobalEnv)
+          g <- formula(g, environment(from@instT[[1]]))
           h <- paste("~", paste(nZ, collapse="+"), "-1")
-          h <- formula(h, .GlobalEnv)
+          h <- formula(h, environment(from@instT[[1]]))
           res <- momentModel(g, h, vcov=from@vcov, vcovOptions=from@vcovOptions,
                           centeredVcov=from@centeredVcov, data=dat)
       })

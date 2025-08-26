@@ -39,10 +39,10 @@ sysMomentModel(g, h=NULL, theta0=NULL, grad=NULL,
   \code{MDS} only when \code{g} is a formula. In that case, residuals
   are assumed homoscedastic as well as serially uncorrelated. For type
   \code{CL}, clustered covariance matrix is computed. The options are
-  then included in \code{vcovOptions} (see \code{\link{meatCL}}).}
+  then included in \code{vcovOptions} (see \code{\link[sandwich]{meatCL}}).}
 
 \item{vcovOptions}{A list of options for the covariance matrix of the
-  moment conditions. See \code{\link{vcovHAC}} for the default values.}
+  moment conditions. See \code{\link[sandwich]{vcovHAC}} for the default values.}
 
 \item{centeredVcov}{Should the moment function be centered when
   computing its covariance matrix. Doing so may improve inference.}

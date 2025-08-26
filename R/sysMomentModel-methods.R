@@ -154,7 +154,6 @@ setMethod("[", c("sysModel", "missing", "list"),
                               } else {
                                   f <- reformulate(momNames, NULL, FALSE)
                                   }
-                          attr(f, ".Environment")<- .GlobalEnv
                           x@q[s] <- length(momNames)
                           x@instT[[s]] <- attr(f, "terms")
                           x@momNames[[s]] <- momNames                              
@@ -500,8 +499,9 @@ setMethod("model.matrix", "snonlinearModel",
 ### The following multiplies each block matrix of ZZ, when the dimensions
 ### are defined by dimr and dimc (dim row and dim column) by each element
 ### of Sigma. Sigma must be length(dimr) by length(dimc)
+### Just set the lowerTri to TRUE by default. The cost is negligible. 
 
-.SigmaZZ <- function(ZZ, Sigma, dimr, dimc=NULL, lowerTri=FALSE, isSym=TRUE)
+.SigmaZZ <- function(ZZ, Sigma, dimr, dimc=NULL, lowerTri=TRUE, isSym=TRUE)
     {
         r1 <- 1        
         c1 <- 1
@@ -533,6 +533,7 @@ setMethod("evalWeights", "sysModel",
               sameMom <- object@sameMom
               n <- object@n
               neqn <- length(spec$eqnNames)
+              wSpec <- list()
               if (is.matrix(w))
               {
                   if (!all(dim(w) == sum(spec$q)))
@@ -573,10 +574,13 @@ setMethod("evalWeights", "sysModel",
                   w <- qr(do.call(cbind, gt)/sqrt(n))
                   Sigma <- NULL
               } else {
-                  stop("Only identity, iid and MDS if allowed for now")
+                  w <- vcovHAC(object, theta)
+                  wSpec <- attr(w,"Spec")
+                  type <- "vcov"
+                  Sigma <- NULL
               }
               return(new("sysMomentWeights", type=type,momNames=object@momNames,
-                         wSpec=list(), w=w, Sigma=Sigma, sameMom=sameMom,
+                         wSpec=wSpec, w=w, Sigma=Sigma, sameMom=sameMom,
                          eqnNames=object@eqnNames))
           })
 
@@ -604,7 +608,7 @@ setMethod("evalGmm", signature("sysModel"),
               theta <- setCoef(model, theta)
               if (is.null(wObj))
                   wObj <- evalWeights(model, theta)
-              new("sgmmfit", theta=theta, convergence=NULL, convIter=NULL,
+              new("sgmmfit", theta=theta, convergence=list(), convIter=NULL,
                   call=Call, type="eval", wObj=wObj, niter=0L, efficientGmm=FALSE,
                   model=model)
           })
@@ -663,7 +667,7 @@ setMethod("modelResponse", signature("slinearModel"),
 
 
 setMethod("solveGmm", c("slinearModel", "sysMomentWeights"),
-          function(object, wObj, theta0 = NULL) {
+          function(object, wObj, theta0 = NULL, ...) {
               if (wObj@type=="iid" && object@sameMom)
                   return(ThreeSLS(object, Sigma=wObj@Sigma, qrZ=wObj@w, coefOnly=TRUE))
               spec <- modelDims(object)              
@@ -678,30 +682,30 @@ setMethod("solveGmm", c("slinearModel", "sysMomentWeights"),
               T2 <- quadra(wObj, G, Syz)
               theta <- -solve(T1, T2)
               theta <- .tetReshape(theta, object@eqnNames, object@parNames)
-              list(theta=theta, convergence=NULL)
+              list(theta=theta, convergence=list())
           })
 
 
 setMethod("solveGmm", signature("snonlinearModel", "sysMomentWeights"),
-          function (object, wObj, theta0 = NULL, ...) 
+          function (object, wObj, theta0 = NULL, algo=algoObj("optim"), ...) 
           {
               if (is.null(theta0))                  
                   theta0 <- modelDims(object)$theta0
               else
                   theta0 <- setCoef(object, theta0)
-              g <- function(theta, wObj, object){
-                  spec <- modelDims(object)
-                  theta <- .tetReshape(theta, object@eqnNames, spec$parNames)
-                  evalGmmObj(object, theta, wObj)
+              g <- function(theta, wObj, model){
+                  spec <- modelDims(model)
+                  theta <- .tetReshape(theta, model@eqnNames, spec$parNames)
+                  evalGmmObj(model, theta, wObj)
               }
-              dg <- function(theta, wObj, object) {
-                  spec <- modelDims(object)
-                  theta <- .tetReshape(theta, object@eqnNames, spec$parNames)
-                  gt <- evalMoment(object, theta)
+              dg <- function(theta, wObj, model) {
+                  spec <- modelDims(model)
+                  theta <- .tetReshape(theta, model@eqnNames, spec$parNames)
+                  gt <- evalMoment(model, theta)
                   gt <- do.call(cbind, gt)
                   n <- nrow(gt)
                   gt <- colMeans(gt)
-                  G <- evalDMoment(object, theta)
+                  G <- evalDMoment(model, theta)
                   full <- all(sapply(1:length(G), function(i) ncol(G[[i]])==sum(spec$k)))
                   G <- .GListToMat(G, full)
                   obj <- 2 * n * quadra(wObj, G, gt)
@@ -709,20 +713,69 @@ setMethod("solveGmm", signature("snonlinearModel", "sysMomentWeights"),
               }
               spec <- modelDims(object)
               theta0 <- .tetReshape(theta0, object@eqnNames, spec$parNames)
-              res <- optim(par = theta0, fn = g, gr = dg, method = "BFGS", 
-                           object = object, wObj = wObj, ...)
-              theta <- .tetReshape(res$par, spec$eqnNames, spec$parNames)
-              list(theta = theta, convergence = res$convergence)
+              if (algo@algo == "optim" & !("method" %in% names(list(...))))
+              {
+                  sol <- minFit(object=algo, start=theta0, fct=g, gr=dg, wObj=wObj,
+                                model=object, method="BFGS", ...)
+              } else {
+                  sol <- minFit(object=algo, start=theta0, fct=g, gr=dg, wObj=wObj,
+                                model=object, ...)
+              }
+              sol$solution <- .tetReshape(sol$solution, spec$eqnNames, spec$parNames)
+              list(theta=sol$solution, convergence=list(message=sol$message,
+                                                        code=sol$convergence,
+                                                        algo=algo@algo))
     })
 
 
 setMethod("solveGmm", signature("sfunctionModel", "sysMomentWeights"),
-          function (object, wObj, theta0 = NULL, ...) 
+          function (object, wObj, theta0 = NULL, algo=algoObj("optim"), ...) 
           {
               met <- getMethod("solveGmm",
                                c("snonlinearModel", "sysMomentWeights"))
-              met(object, wObj, theta0, ...)
+              met(object, wObj, theta0, algo, ...)
     })
+
+## vcovHAC
+
+setMethod("vcovHAC", "sysModel",
+          function (x, theta) { 
+              if (x@vcov != "HAC")
+              {
+                  warning("Model set as ", x@vcov, ". The default HAC options are used")
+                  x@vcov <- "HAC"
+                  x@sSpec <- new("sSpec")
+                  x@smooth <- FALSE
+                  x@vcovOptions <- .getVcovOptions("HAC")
+              }
+              gmat <- evalMoment(x, theta)
+              gmat <- do.call(cbind, gmat)
+              if (x@centeredVcov) 
+                  gmat <- scale(gmat, scale = FALSE)
+              class(gmat) <- "momentFct"
+              options <- x@vcovOptions
+              if (is.character(options$bw))
+              {
+                  if (options$bw == "Wilhelm")
+                      warning("bw = Wilhelm is not available for system GMM")
+                  obj <- gmat
+                  bwFct  <- get(paste("bw",options$bw,sep=""))
+                  bwArgs <- options
+                  bwArgs$bw <- NULL
+                  bwArgs$tol <- NULL
+                  bwArgs$x <- obj
+                  bw <- do.call(bwFct, bwArgs)
+              } else {
+                  bw <- options$bw
+              }
+              weights <- weightsAndrews(x = gmat, bw = bw, kernel = options$kernel, 
+                                        prewhite = options$prewhite, tol = options$tol)
+              w <- meatHAC(x = gmat, order.by = NULL, weights = weights, 
+                           prewhite = options$prewhite, diagnostics = FALSE,
+                           adjust = options$adjust, ar.method = options$ar.method)
+              attr(w, "Spec") <- list(weights = weights, bw = bw, kernel = options$kernel)
+              w
+          })
 
 ## vcov
 
@@ -731,26 +784,33 @@ setMethod("vcov", signature("sysModel"),
               spec <- modelDims(object)
               q <- spec$q
               if (object@vcov == "MDS")
+              {
+                  gt <- evalMoment(object, theta)
+                  gt <- do.call(cbind, gt)
+                  if (object@centeredVcov)
+                      gt <- scale(gt, scale=FALSE)
+                  w <- crossprod(gt)/nrow(gt)
+              } else if (object@vcov == "iid") {
+                  e <- residuals(object, theta)
+                  Sigma <- crossprod(e)/nrow(e)
+                  Z <- model.matrix(object, "instrument")
+                  if (object@sameMom)
                   {
-                      gt <- evalMoment(object, theta)
-                      gt <- do.call(cbind, gt)
-                      if (object@centeredVcov)
-                          gt <- scale(gt, scale=FALSE)
-                      w <- crossprod(gt)/nrow(gt)
-                  } else if (object@vcov == "iid") {
-                      e <- residuals(object, theta)
-                      Sigma <- crossprod(e)/nrow(e)
-                      Z <- model.matrix(object, "instrument")
-                      if (object@sameMom)
-                          {
-                              w <- kronecker(Sigma, crossprod(Z[[1]])/nrow(e))
-                          } else {
-                              Z <- crossprod(do.call(cbind,Z))/nrow(e)
-                              w <- .SigmaZZ(Z, Sigma, q)
-                          }
+                      w <- kronecker(Sigma, crossprod(Z[[1]])/nrow(e))
                   } else {
-                      stop("not yet implemented for HAC")
+                      Z <- crossprod(do.call(cbind,Z))/nrow(e)
+                      w <- .SigmaZZ(Z, Sigma, q)
                   }
+              } else if (object@vcov == "CL") {
+                  gt <- evalMoment(object, theta)
+                  gt <- do.call(cbind, gt)
+                  class(gt) <- "momentFct"
+                  opt <- object@vcovOptions
+                  opt$x <- gt
+                  w <- do.call(meatCL, opt)                                            
+              } else {
+                  w <- vcovHAC(object, theta)
+              }
               wn <- paste(rep(spec$eqnNames, q), ".", do.call("c", spec$momNames), 
                           sep = "")
               dimnames(w) <- list(wn,wn)
@@ -772,7 +832,7 @@ setMethod("tsls", "slinearModel",
               wObj <- evalWeights(model, w=w)
               theta <- lapply(res, coef)
               names(theta) <- model@eqnNames
-              new("stsls", theta=theta, convergence=NULL, convIter=NULL,
+              new("stsls", theta=theta, convergence=list(), convIter=NULL,
                   call=Call, type="tsls", wObj=wObj, niter=1L,
                   efficientGmm=FALSE, model=model)
           })
@@ -834,11 +894,11 @@ setMethod("ThreeSLS", "slinearModel",
               C <- rowSums(C)
               theta <- .tetReshape(solve(A, C), model@eqnNames, spec$parNames)
               if (coefOnly)
-                  return(list(theta=theta, convergence=NULL))
+                  return(list(theta=theta, convergence=list()))
               wObj <- new("sysMomentWeights", w=qrZ, Sigma=Sigma, type="iid",
                           momNames=spec$momNames,
                           wSpec=list(), sameMom=TRUE, eqnNames=model@eqnNames)
-              new("sgmmfit", theta=theta, convergence=NULL,
+              new("sgmmfit", theta=theta, convergence=list(),
                   convIter=rep(NULL, neqn), call=Call, type=type, wObj=wObj,
                   niter=2L, efficientGmm=efficientGmm,  model=model)
           })
@@ -885,12 +945,10 @@ setMethod("gmmFit", signature("sysModel"), valueClass="sgmmfit",
                   neqn <- length(model@eqnNames)
                   res <- lapply(1:neqn, function(i)
                       gmmFit(model[i], type=type, weights=weights,itertol=itertol,
-                               initW=initW, itermaxit=itermaxit,
-                               efficientWeights=efficientWeights, theta0=theta0, ...))
+                             initW=initW, itermaxit=itermaxit,
+                             efficientWeights=efficientWeights, theta0=theta0, ...))
                   theta <- lapply(res, coef)                  
-                  convergence <- sapply(res, function(r) r@convergence)
-                  if (is.list(convergence))
-                      convergence <- do.call("c", convergence)
+                  convergence <- lapply(res, function(r) r@convergence)
                   convIter <- sapply(res, function(r) r@convIter)
                   niter <- sapply(res, function(r) r@niter)
                   if (is.list(convIter))
@@ -967,7 +1025,7 @@ setMethod("gmmFit", signature("sysModel"), valueClass="sgmmfit",
                   else
                       wObj0 <- NULL
                   wObj <- evalWeights(model, theta0, "optimal", wObj0)
-                  if (model@vcov=="HAC" && is.character(model@bw))
+                  if (model@vcov=="HAC" && is.character(model@vcovOptions$bw))
                       model@vcovOptions$bw <- wObj@wSpec$bw
                   res <- solveGmm(model, wObj, theta0, ...)
                   theta1 <- res$theta
@@ -1009,10 +1067,23 @@ setMethod("gmmFit", signature("sysModel"), valueClass="sgmmfit",
                       wObj <- evalWeights(model, theta, "optimal", wObj0)
                       evalGmmObj(model, theta, wObj)
                   }
-                  res <- optim(do.call("c",theta0), obj, model=model, wObj0=wObj0,
-                               spec=spec, ...)
-                  theta1 <- .tetReshape(res$par, spec$eqnNames,spec$parNames)
-                  convergence <- res$convergence
+                  dots <- list(...)
+                  if (is.null(dots$algo))
+                  {
+                      algo <- algoObj("optim")
+                  } else {
+                      algo <- dots$algo
+                      dots$algo <-  NULL
+                  }
+                  if (algo@algo == "optim" & !("method" %in% names(dots)))
+                      dots$method <- "BFGS"
+                  dots <- c(dots,
+                            list(object=algo, start=do.call("c",theta0),
+                                 fct=obj, model=model, wObj0=wObj0, spec=spec))
+                  res <- do.call("minFit", dots)
+                  theta1 <- .tetReshape(res$solution, spec$eqnNames,spec$parNames)
+                  convergence <- list(message=res$message, code=res$convergence,
+                                      algo=algo@algo)
                   wObj <- evalWeights(model, theta1, "optimal", wObj0)
               }
               model@vcovOptions$bw <- bw

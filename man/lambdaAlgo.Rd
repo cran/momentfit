@@ -24,7 +24,7 @@ ETXX_lam(gmat, lambda0, k, gelType, algo, method, control)
 getLambda(gmat, lambda0=NULL, gelType=NULL, rhoFct=NULL, 
           tol = 1e-07, maxiter = 100, k = 1, method="BFGS", 
           algo = c("nlminb", "optim", "Wu"), control = list(),
-          restrictedLam=integer()) 
+          restrictedLam=integer(), ...) 
 }
 \arguments{
 \item{gmat}{The \eqn{n \times q} matrix of moments}
@@ -65,6 +65,8 @@ created.}
 
 \item{restrictedLam}{A vector of integers indicating which
   \code{"lambda"} are restricted to be equal to 0.}
+
+\item{...}{Arguments to pass to other methods. Currently not used.}
   
 }
 

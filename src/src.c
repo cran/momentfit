@@ -5,6 +5,7 @@
 static const R_FortranMethodDef fortranMethods[] = {
   {"wu", (DL_FUNC) &F77_SUB(wu), 9},
   {"lamcuep", (DL_FUNC) &F77_SUB(lamcuep), 9},
+  {"pinv", (DL_FUNC) &F77_SUB(pinv), 5},
   {NULL, NULL, 0}
 };
 

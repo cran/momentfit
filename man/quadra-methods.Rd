@@ -15,15 +15,17 @@
  \code{momentWeights} object ~~
 }
 \usage{
-\S4method{quadra}{momentWeights,missing,missing}(w, x, y)
+\S4method{quadra}{momentWeights,missing,missing}(w, x, y, genInv=FALSE)
 
-\S4method{quadra}{momentWeights,matrixORnumeric,missing}(w, x, y)
+\S4method{quadra}{momentWeights,matrixORnumeric,missing}(w, x, y,
+genInv=FALSE)
 
 \S4method{quadra}{momentWeights,matrixORnumeric,matrixORnumeric}(w, x,
-y)
+y, genInv=FALSE)
 
-\S4method{quadra}{sysMomentWeights,matrixORnumeric,matrixORnumeric}(w, x,
-y)
+
+\S4method{quadra}{sysMomentWeights,matrixORnumeric,matrixORnumeric}(w,
+x, y)
 
 \S4method{quadra}{sysMomentWeights,matrixORnumeric,missing}(w, x, y)
 
@@ -35,7 +37,9 @@ y)
   \item{w}{An object of class \code{"momentWeights"}}
   \item{x}{A matrix or numeric vector}
   \item{y}{A matrix or numeric vector}
+  \item{genInv}{Should we invert the center matrix using a generalized inverse?}
 }
+
 \section{Methods}{
 \describe{
 \item{\code{signature(w = "momentWeights", x = "matrixORnumeric",  y =
@@ -55,8 +59,17 @@ decomposition or a covariance matrix into the \code{\link{momentWeights}}
 object. The \code{quadra} method with no \code{y} and \code{x} is
 therefore a way to invert it. The same applies to system of equations
 
+}}}
+
+\value{
+  It returns a single numeric value.
 }
-}}
+
+\references{
+  Courrieu P (2005), Fast Computation of Moore-Penrose Inverse Matrices.
+  \emph{Neural Information Processing - Letters and Reviews}, \bold{8}(2), 25--29.
+}
+
 \examples{
 data(simData)
 
@@ -66,13 +79,30 @@ model1 <- momentModel(y~x1, ~z1+z2, data=simData)
 gbar <- evalMoment(model1, theta)
 gbar <- colMeans(gbar)
 
-### Onjective function of GMM with identity matrix
+### Objective function of GMM with identity matrix
 wObj <- evalWeights(model1, w="ident")
 quadra(wObj, gbar)
 
-### Onjective function of GMM with efficient weights
+### Objective function of GMM with efficient weights
 wObj <- evalWeights(model1, theta)
 quadra(wObj, gbar)
+
+### Linearly dependent instruments
+
+simData$z3 <- simData$z1+simData$z2
+model2 <- momentModel(y~x1, ~z1+z2+z3, data=simData)
+gbar2 <- evalMoment(model2, theta)
+gbar2 <- colMeans(gbar2)
+
+## A warning is printed about the singularity of the weighting matrix
+wObj <- evalWeights(model2, theta)
+
+## The regular inverse using the QR decomposition:
+quadra(wObj)
+
+## The regular inverse using the generalized inverse:
+quadra(wObj, genInv=TRUE)
+
 
 }
 \keyword{methods}

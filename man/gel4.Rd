@@ -52,7 +52,7 @@ gel4(g, x=NULL, theta0=NULL,lambda0=NULL, getVcov=FALSE,
   respect to \eqn{\theta}.}
 
 \item{vcovOptions}{A list of options for the covariance matrix of the
-  moment conditions. See \code{\link{vcovHAC}} for the default values.}
+  moment conditions. See \code{\link[sandwich]{vcovHAC}} for the default values.}
 
 \item{centeredVcov}{Should the moment function be centered when
   computing its covariance matrix. Doing so may improve inference.}

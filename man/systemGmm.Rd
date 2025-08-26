@@ -7,7 +7,7 @@ This document is meant to describe how to create system of equations
 objects, estimating them and peforming hypothesis tests.
 }
 \details{
-Instread of repeating the same example for each method, we are going
+Instead of repeating the same example for each method, we are going
 through all methods and classes for systems of equations.
 }
   
@@ -44,7 +44,7 @@ specTest(res)
 ## All info using the summary method
 ## which includes equation by equation measures of
 ## the instrument stengths
-summary(res)
+\dontrun{summary(res)}
 
 ### When the error id iid (homoscedastic), we have a
 ### FIVE estimator with 2SLS  as the first step
@@ -81,9 +81,9 @@ rm2 <- restModel(smodel, R2)
 
 ## testing the restriction
 
-hypothesisTest(res, res1, type="LR")
-hypothesisTest(res, res1, type="LM")
-hypothesisTest(res, res1, type="Wald")
+\dontrun{hypothesisTest(res, res1, type="LR")}
+\dontrun{hypothesisTest(res, res1, type="LM")}
+\dontrun{hypothesisTest(res, res1, type="Wald")}
 
 }
 \keyword{FIVE}

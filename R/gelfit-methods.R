@@ -33,7 +33,11 @@
             fit <- suppressWarnings(update(obj, cstLHS=R))
         } else {
             mod <- restModel(obj@model, R)
-            fit <- suppressWarnings(update(obj, newModel=mod))
+            args <- c(list(model=mod, gelType=obj@gelType$name,
+                           rhoFct=obj@gelType$rhoFct),
+                      obj@argsCall)
+            args$theta0 <- coef(obj)[-which]
+            fit <- suppressWarnings(do.call(gelFit, args))            
         }
         test <- c(specTest(fit, type=type)@test)[1]-test0
         test-qchisq(level, 2)
@@ -43,9 +47,16 @@
                          test0=test0, level=level), silent=TRUE)
         b <- coef(object)[which]
         if (inherits(r, "try-error"))
+        {
             c(NA,NA)
-        else
-            b*(1-r$root) + p[i,]*r$root        
+            mess <- "Could not compute the confidence area: \n"
+            mess <- paste(mess, "uniroot failed to find the interval bounds inside ",
+                          "+- fact*SD around the estimate, with fact=", fact, ". ",
+                          "Try changing the value of fact")
+            warning(mess, call.=FALSE)
+        } else {
+            b*(1-r$root) + p[i,]*r$root
+        }
     }, mc.cores=cores))
     do.call(rbind, res)
 }
@@ -80,14 +91,17 @@
             fit2 <- suppressWarnings(update(fit, cstLHS=R))
         } else {
             model <- restModel(fit@model, R)
-            fit2 <- suppressWarnings(update(fit, newModel=model,
-                                            theta0=coef(fit)[-which]))
+            args <- c(list(model=model, gelType=fit@gelType$name,
+                           rhoFct=fit@gelType$rhoFct),
+                      fit@argsCall)
+            args$theta0 <- coef(fit)[-which]
+            fit2 <- suppressWarnings(do.call(gelFit, args))
         }
         test <- specTest(fit2, type=type, ...)@test[1] - test0
-         if (is.null(corr))
-            level - pchisq(test, 1)
-        else
-            level - pchisq(test/corr, 1)
+        crit <- qchisq(level, 1)
+        if (!is.null(corr))
+            crit <- crit/corr
+        crit - test        
     }
     res1 <- try(uniroot(fct, int1, which = which, type=type, level=level,
                         fit=object, test0=test0, corr=corr),
@@ -98,12 +112,11 @@
     if (any(c(class(res1), class(res2)) == "try-error"))
     {
         test <- c(NA,NA)
-        mess <- "Could not compute the confidence interval because: \n"
-        if (inherits(res1,"try-error"))
-            mess <- paste(mess, "(1) ", res1[1], "\n", sep="")
-        if (inherits(res2,"try-error"))
-            mess <- paste(mess, "(2) ", res2[1], "\n", sep="")
-        warning(mess)        
+        mess <- "Could not compute the confidence interval: \n"
+        mess <- paste(mess, "uniroot failed to find the interval bounds inside ",
+                      "+- fact*SD around the estimate, with fact=", fact, ". ",
+                      "Try changing the value of fact")
+        warning(mess, call.=FALSE)        
     } else {
         test <- sort(c(res1$root, res2$root))
     }
@@ -135,12 +148,16 @@ setMethod("print", "gelfit",
                       "\n", sep="")
               }
               cat("coefficients:\n")
-              print.default(format(theta, ...), print.gap=2L, quote=FALSE)
+              if (length(theta))
+                  print.default(format(theta, ...), print.gap=2L, quote=FALSE)
+              else
+                  cat("\tNo estimated coefficients\n")
               if (lambda)
               {
                   cat("lambdas:\n")
                   print.default(format(x@lambda, ...), print.gap=2L, quote=FALSE)
               }
+              invisible()
           })
 
 ## show
@@ -207,6 +224,15 @@ setMethod("getImpProb", "gelfit",
 setMethod("vcov", "gelfit",
           function(object, withImpProb=FALSE, tol=1e-10, robToMiss=FALSE) {
               spec <- modelDims(object@model)
+              if (any(is.na(object@lambda)))
+              {
+                  Sigma <- matrix(NA, spec$k, spec$k)
+                  if (spec$k>0)
+                      dimnames(Sigma) <- list(spec$parNames, spec$parNames)
+                  SigmaLam <- matrix(NA, spec$q, spec$q)
+                  dimnames(SigmaLam) <- list(spec$momNames, spec$momNames)
+                  return(list(vcov_par = Sigma, vcov_lambda = SigmaLam))
+              }
               if (robToMiss)
               {
                   eta <- c(coef(object), object@lambda)
@@ -215,8 +241,13 @@ setMethod("vcov", "gelfit",
                   fit <- evalGmm(mod, theta=eta)
                   v <- vcov(fit)
                   spec <- modelDims(object@model)
-                  Sigma <- v[1:spec$k, 1:spec$k]
-                  dimnames(Sigma) <- list(spec$parNames, spec$parNames)
+                  if (spec$k>0)
+                  {
+                      Sigma <- v[1:spec$k, 1:spec$k]
+                      dimnames(Sigma) <- list(spec$parNames, spec$parNames)
+                  } else {
+                      Sigma <- matrix(nrow=0, ncol=0)
+                  }
                   SigmaLam <- v[(spec$k+1):nrow(v), (spec$k+1):ncol(v)]
                   dimnames(SigmaLam) <- list(spec$momNames, spec$momNames)
                   return(list(vcov_par = Sigma, vcov_lambda = SigmaLam))
@@ -237,22 +268,47 @@ setMethod("vcov", "gelfit",
                   G <- G/k[1]
                   gt <- gt * sqrt(bw/k[2]/n)
               }
-              qrGt <- qr(gt)
-              piv <- qrGt$pivot
-              R <- qr.R(qrGt)
-              X <- forwardsolve(t(R), G[piv,])
-              Y <- forwardsolve(t(R), diag(q)[piv,])
-              res <- lm.fit(as.matrix(X), Y)
-              u <- res$residuals
-              Sigma <- chol2inv(res$qr$qr)/n
-              diag(Sigma)[diag(Sigma) < 0] <- tol
-              if (q == ncol(G)) {
+              if (ncol(G) > 0)
+              {
+                  qrGt <- qr(gt)
+                  piv <- qrGt$pivot
+                  R <- qr.R(qrGt)
+                  X <- forwardsolve(t(R), G[piv,])
+                  Y <- forwardsolve(t(R), diag(q)[piv,])
+                  res <- lm.fit(as.matrix(X), Y)
+                  u <- res$residuals
+                  Sigma <- try(chol2inv(res$qr$qr)/n, silent=TRUE)
+                  if (inherits(Sigma, "try-error"))
+                  {
+                      Sigma <- matrix(NA, ncol(G), ncol(G))
+                      warning("Failed to compute the variance of the coefficients")
+                  } else {
+                      diag(Sigma)[diag(Sigma) < 0] <- tol
+                  }
+                  dimnames(Sigma) <- list(spec$parNames,spec$parNames)                  
+              } else {
+                  Sigma <- matrix(nrow=0, ncol=0)
+              }
+              if (q == ncol(G))
+              {
                   SigmaLam <- matrix(0, q, q)
               } else {
-                  SigmaLam <- crossprod(Y, u)/n * bw^2
-                  diag(SigmaLam)[diag(SigmaLam) < 0] <- tol
+                  if (ncol(G) > 0)
+                  {
+                      SigmaLam <- crossprod(Y, u)/n * bw^2
+                      diag(SigmaLam)[diag(SigmaLam) < 0] <- tol
+                  } else {
+                      SigmaLam <- try(solve(crossprod(gt))/n * bw^2, silent=TRUE)
+                      if (inherits(SigmaLam, "try-error"))
+                      {
+                          SigmaLam <- matrix(NA, q, q)
+                          warning("Failed to compute the variance of the lambdas")
+                      } else {
+                          diag(SigmaLam)[diag(SigmaLam) < 0] <- tol
+                      }
+                  }
               }
-              piv <- sort.int(piv, index.return = TRUE)$ix
+              dimnames(SigmaLam) <- list(spec$momNames, spec$momNames)
               list(vcov_par = Sigma, vcov_lambda = SigmaLam)
           })
 
@@ -375,9 +431,19 @@ setMethod("confint", "gelfit",
 setMethod("confint", "numeric",
           function (object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid")
+                    fact = 3, vcov="iid", BartlettCorr = FALSE)
           {
               Call <- try(match.call(call=sys.call(sys.parent())), silent=TRUE)
+              corr <- NULL
+              if (BartlettCorr)
+              {
+                  m <- mean(object)
+                  mu2 <- mean((object-m)^2)
+                  mu3 <- mean((object-m)^3)
+                  mu4 <- mean((object-m)^4)
+                  a <- mu4/(mu2^2*2)-mu3^2/(mu2^3*3)
+                  corr <- (1-a/length(object))
+              }
               if (inherits(Call,"try-error"))
                   Call <- NULL
               type <- match.arg(type)
@@ -385,13 +451,10 @@ setMethod("confint", "numeric",
               if (!is.null(Call))
                   names(object) <- as.character(Call)[2]
               g <- as.formula(paste(names(object),"~1",sep=""))
-              n <- nrow(object)
-              s <- sd(object[[1]], na.rm=TRUE)/sqrt(n)
-              m <- mean(object[[1]], na.rm=TRUE)
               mod <- momentModel(g, ~1, vcov=vcov, data=object)
-              fit <- gelFit(model=mod, gelType=gelType,
-                            tControl=list(method="Brent",lower=m-s,upper=m+s))
-              ans <- confint(fit, parm=1, level=level, type=type, fact=fact)
+              fit <- suppressWarnings(gelFit(model=mod, gelType=gelType))
+              ans <- confint(fit, parm=1, level=level, type=type,
+                             fact=fact, corr=corr)
               rownames(ans@interval) <- names(object)
               ans
           })
@@ -399,7 +462,7 @@ setMethod("confint", "numeric",
 setMethod("confint", "data.frame",
           function (object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid", 
+                    fact = 3, corr=NULL, vcov="iid", 
                     npoints=10, cores=4) 
           {
               type <- match.arg(type)
@@ -427,19 +490,19 @@ setMethod("confint", "data.frame",
                                  theta0=theta0)
               fit <- gelFit(mod, gelType=gelType)
               confint(fit, parm=1:2, level=level, lambda=FALSE,
-                      type=type, fact=fact, corr=NULL, vcov=NULL, area=TRUE,
+                      type=type, fact=fact, corr=corr, vcov=NULL, area=TRUE,
                       npoints=npoints, cores=cores)
           })
 
 setMethod("confint", "matrix",
           function(object, parm, level = 0.95, gelType="EL", 
                     type = c("Wald", "invLR", "invLM", "invJ"),
-                    fact = 3, vcov="iid", 
+                    fact = 3, corr = NULL, vcov="iid", 
                     npoints=10, cores=4)
           {
               object <- as.data.frame(object)
               type <- match.arg(type)
-              confint(object, parm, level, gelType, type, fact, vcov,
+              confint(object, parm, level, gelType, type, fact, corr, vcov,
                       npoints, cores)
           })
                    
@@ -542,7 +605,8 @@ setMethod("specTest", signature("gelfit", "missing"),
               }
               if (type %in% c("All","J"))
               {
-                  J <- sum(lm.fit(gt, rep(1,n))$fitted.values)
+                  J <- sum(lm.fit(gt, rep(1,NROW(gt)))$fitted.values)/
+                      object@model@sSpec@k[1]^2
                   test <- c(test, J)
                   names(test)[length(test)] <- " J: "                  
               }
@@ -578,7 +642,10 @@ setMethod("print", "summaryGel",
                                               digits=5), "\n", sep="")
               
               cat("\ncoefficients:\n")
-              printCoefmat(x@coef, digits=digits, ...)
+              if (nrow(x@coef))
+                  printCoefmat(x@coef, digits=digits, ...)
+              else
+                  cat("\tNo estimated coefficients\n")
               if (lambda)
                   {
                       cat("\nLambdas:\n")

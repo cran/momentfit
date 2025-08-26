@@ -1,4 +1,21 @@
-Changes in version 0.0-2
+Changes in version 1.0
 
-o Added restricted EEL (REEL), which imposes the implied probabilities to be non-negative.
-o Algorithms like WU for EL and EEL are now written in Fortran
+o Added Bartlett correction for EL-confidence interval of the mean.
+
+o New tools to deal with Weak instruments have been added. See the vignette weak.pdf.
+
+o Nonlinear GMM models have shown to be hard to estimate with the default optim. Since the gradian is automatically provided within the solveGmm method (with analytical derivatives when possible), BFGS is now the default method. It seems to perform better in general.
+
+o Related to the previous point, there is now an option to select a different optimization algorithm, even from different packages. It is explained in the vignette. For that matter, the argument algo is no longer defined as vector of character with the option "optim" and "nlminb". Instead, it is a new object. See the vignette.
+
+o The gmm estimation does not work well when the weighting matrix is singular or nearly singular. It was shown that using a generalized inverse instead of the regular inverse is preferred. It is now optional to use a Moore-Penrose inverse when ever it is needed.
+
+o It is now possible to add the argument order.by to the vcovOptions argument of momentModel. This is passed to vcovHAC and is relevant when the data are not properly ordered.
+
+Changes in version 0.5
+
+o The Makevars was modified. The previous version was hard to install on most MAC because of an unnecessary flag. It is no longer the case. 
+
+o An option for not computing the moment strength has been added to the summary method.
+
+

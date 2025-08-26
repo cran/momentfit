@@ -9,6 +9,7 @@
 \alias{gmmFit,rformulaModel-method}
 \alias{gmmFit,rslinearModel-method}
 \alias{gmmFit,rnonlinearModel-method}
+\alias{gmmFit,rfunctionModel-method}
 \title{ ~~ Methods for Function \code{gmmFit} in Package \pkg{momentfit} ~~}
 \description{
 Method to fit a model using GMM, from an object of class

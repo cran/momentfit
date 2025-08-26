@@ -254,15 +254,15 @@ res <- confint(simData, c("x2","y"), npoints=20)
 res
 
 ## ----fig.height=5, eval=FALSE-------------------------------------------------
-#  res2 <- confint(simData, c("x2","y"), type="invLR", npoints=20)
-#  c1 <- col2rgb("darkorange2")/255
-#  c1 <- rgb(c1[1],c1[2],c1[3],.5)
-#  c2 <- col2rgb("lightblue2")/255
-#  c2 <- rgb(c2[1],c2[2],c2[3],.5)
-#  plot(res, pch=20, bg=1, Pcol=c1, col=c1, density=10, ylim=c(3.5,6.5),
-#       xlim=c(4.8,7.5))
-#  plot(res2, pch=20, bg=2, Pcol=c2, col=c2, density=10, add=TRUE)
-#  legend("topright", c("Wald","LR"), col=c(c1,c2), pch=20 , bty="n")
+# res2 <- confint(simData, c("x2","y"), type="invLR", npoints=20)
+# c1 <- col2rgb("darkorange2")/255
+# c1 <- rgb(c1[1],c1[2],c1[3],.5)
+# c2 <- col2rgb("lightblue2")/255
+# c2 <- rgb(c2[1],c2[2],c2[3],.5)
+# plot(res, pch=20, bg=1, Pcol=c1, col=c1, density=10, ylim=c(3.5,6.5),
+#      xlim=c(4.8,7.5))
+# plot(res2, pch=20, bg=2, Pcol=c2, col=c2, density=10, add=TRUE)
+# legend("topright", c("Wald","LR"), col=c(c1,c2), pch=20 , bty="n")
 
 ## ----extract, message=FALSE, warning=FALSE------------------------------------
 library(texreg)

@@ -40,7 +40,7 @@ momentModel(g, x=NULL, theta0=NULL,grad=NULL,
   provide this function when it is possible. This gradient is used to
   compute the asymptotic covariance matrix of \eqn{\hat{\theta}} and to
   obtain the analytical gradient of the objective function if the method
-  is set to "CG" or "BFGS" in \code{\link{optim}} and if "type" is not
+  is set to "CG" or "BFGS" in \code{\link[stats]{optim}} and if "type" is not
   set to "cue". If "g" is a formula, the gradiant is not required (see
   the details below).}
 
@@ -52,10 +52,10 @@ momentModel(g, x=NULL, theta0=NULL,grad=NULL,
   \code{MDS} only when \code{g} is a formula. In that case, residuals
   are assumed homoscedastic as well as serially uncorrelated. For type
   \code{CL}, clustered covariance matrix is computed. The options are
-  then included in \code{vcovOptions} (see \code{\link{meatCL}}). }
+  then included in \code{vcovOptions} (see \code{\link[sandwich]{meatCL}}). }
 
 \item{vcovOptions}{A list of options for the covariance matrix of the
-  moment conditions. See \code{\link{vcovHAC}} for the default values.}
+  moment conditions. See \code{\link[sandwich]{vcovHAC}} for the default values.}
 
 \item{centeredVcov}{Should the moment function be centered when
   computing its covariance matrix. Doing so may improve inference.}

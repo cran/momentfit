@@ -128,7 +128,7 @@ ETXX_lam <- function(gmat, lambda0, k, gelType, algo, method, control)
 getLambda <- function (gmat, lambda0=NULL, gelType=NULL, rhoFct=NULL, 
                        tol = 1e-07, maxiter = 100, k = 1, method="BFGS", 
                        algo = c("nlminb", "optim", "Wu"), control = list(),
-                       restrictedLam=integer()) 
+                       restrictedLam=integer(), ...) 
 {
     if (!is.null(gelType))
     {
@@ -136,7 +136,7 @@ getLambda <- function (gmat, lambda0=NULL, gelType=NULL, rhoFct=NULL,
             algo <- "Wu"
     }
     algo <- match.arg(algo)
-    gmat <- as.matrix(gmat)    
+    gmat <- as.matrix(gmat)
     if (length(restrictedLam))
     {
         if (length(restrictedLam) > ncol(gmat))
@@ -147,6 +147,23 @@ getLambda <- function (gmat, lambda0=NULL, gelType=NULL, rhoFct=NULL,
         gmat <- gmat[,-restrictedLam,drop=FALSE]
     } else {
         restrictedLam <- integer()
+    }
+    mes <- character()
+    chk1 <- any(apply(gmat, 2, function(x) all(x>0) | all(x<0)))
+    if (chk1)
+        mes <- c(mes, "0 is not inside the convex hull of gt")
+    chk2 <- any(is.na(gmat))
+    if (chk2)
+        mes <- c(mes, "Some values of the moment matrix gt are NA's")
+    chk3 <- any(!is.finite(gmat))
+    if (chk3)
+        mes <- c(mes, "Some values of the moment matrix gt are not finite")
+    if (length(mes))
+    {
+        lambda <- rep(NA, length(restrictedLam)+ncol(gmat))
+        lambda[restrictedLam] <- 0
+        return(list(lambda = lambda,
+                    convergence = list(convergence=1, message=mes), obj= NA))
     }
     if (is.null(lambda0))
     {

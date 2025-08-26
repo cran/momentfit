@@ -21,16 +21,30 @@ setMethod("print", "gmmfit",
                                 "twostep","iter","cue","onestep","tsls", "eval","mde"),
                               ncol=2)
               type <- ntype[match(x@type, ntype[,2]),1]
+              if (is.na(type))
+                  type <- x@type
               spec <- modelDims(x@model)
               if (spec$q==spec$k && x@type != "eval")
                   type <- "One-Step, Just-Identified"
               cat("\nEstimation: ", type,"\n")
-              if (!is.null(x@convergence))
-                  cat("Convergence Optim: ", x@convergence, "\n")              
-              if (!is.null(x@convIter))
-                  cat("Convergence Iteration: ", x@convIter, "\n")
-              cat("coefficients:\n")
-              print.default(format(theta, ...), print.gap=2L, quote=FALSE)
+              if (length(theta))
+              {
+                  if (length(x@convergence))
+                  {
+                      cat("Convergence code: ", x@convergence$code,
+                          " (see help(", x@convergence$algo, "))\n", sep="")
+                      if (!is.null(x@convergence$message))
+                          cat("Convergence message: ", x@convergence$message,
+                              "\n", sep="")
+                  }
+                  if (!is.null(x@convIter))
+                      cat("Convergence Iteration: ", x@convIter, "\n")
+                  cat("coefficients:\n")
+                  print.default(format(theta, ...), print.gap=2L, quote=FALSE)
+              } else {
+                   cat("coefficients:\n\tNo estimated coefficients\n")
+              }
+              invisible()
           })
 
 ## show
@@ -47,6 +61,13 @@ setMethod("residuals", "gmmfit", function(object) {
 setMethod("vcov", "gmmfit",
           function(object, sandwich=NULL, df.adj=FALSE, breadOnly=FALSE,
                    modelVcov=NULL) {
+              if (length(coef(object)) == 0)
+              {
+                  vcov <- matrix(nrow=0, ncol=0)
+                  attr(vcov, "type") <- list(sandwich=TRUE, df.adj=FALSE,
+                                             breadOnly=breadOnly)
+                  return(vcov)
+              }
               if (!is.null(modelVcov))
                   {
                       if (modelVcov != object@model@vcov)
@@ -182,13 +203,8 @@ setMethod("summary", "gmmfit",
                                                      lower.tail = FALSE))
               df.adj <- attr(v, "type")$df.adj
               stest <- specTest(object, df.adj=df.adj)
-              vcovType <- switch(object@model@vcov,
-                                 HAC="HAC",
-                                 iid="OLS",
-                                 MDS="HC",
-                                 CL="CL")
               strength <-  if (testStrength){
-                               momentStrength(object@model, coef(object), vcovType)
+                               momentStrength(object@model, coef(object))
                            } else { list(strength=NULL, mess=NULL) }
               dimnames(coef) <- list(names(par), 
                                      c("Estimate", "Std. Error", "t value", "Pr(>|t|)"))

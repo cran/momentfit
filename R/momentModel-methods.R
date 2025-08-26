@@ -122,16 +122,42 @@ setMethod("modelResponse", signature("linearModel"),
 
 setGeneric("model.matrix")
 setMethod("model.matrix", signature("linearModel"),
-          function(object, type=c("regressors","instruments"))
+          function(object, type=c("regressors","instruments","excludedExo",
+                                  "includedExo", "includedEndo"))
           {
               type <- match.arg(type)
               if (type == "regressors")
               {
                   ti <- attr(object@modelF, "terms")
-                  mat <- as.matrix(model.matrix(ti, object@modelF)[,])
-              } else {
+                  mat <- as.matrix(model.matrix(ti, object@modelF)[,,drop=FALSE])
+              } else if (type == "instruments"){
                   ti <- attr(object@instF, "terms")
-                  mat <- as.matrix(model.matrix(ti, object@instF)[,])
+                  mat <- as.matrix(model.matrix(ti, object@instF)[,,drop=FALSE])
+              } else {
+                  X <- model.matrix(object)
+                  Z <- model.matrix(object, "instruments")
+                  x1n <- colnames(Z) %in% colnames(X)
+                  endo <- modelDims(object)$isEndo 
+                  if (type == "excludedExo")
+                  {
+                      if (all(x1n))
+                      {
+                          return(NULL)
+                      }
+                      mat <- Z[,!x1n,drop=FALSE]
+                  } else if (type == "includedExo") {
+                      if (all(endo))
+                      {
+                          return(NULL)
+                      }
+                      mat <- X[,!endo,drop=FALSE]
+                  } else {
+                      if (all(!endo))
+                      {
+                          return(NULL)
+                      }
+                      mat <- X[,endo,drop=FALSE]
+                  }
               }
               mat
           })
@@ -520,10 +546,10 @@ setMethod("vcovHAC", "momentModel",
               }
               weights <- weightsAndrews(x = gmat, bw = bw, kernel = options$kernel, 
                                         prewhite = options$prewhite, tol = options$tol)
-              w <- vcovHAC(x = gmat, order.by = NULL, weights = weights, 
-                           prewhite = options$prewhite, sandwich = FALSE,
-                           ar.method = options$ar.method)
-              attr(w, "Spec") <- list(weights = weights, bw = bw, kernel = options$kernel)
+              w <- meatHAC(x = gmat, order.by = options$order.by, weights = weights, 
+                           prewhite = options$prewhite, ar.method = options$ar.method,
+                           adjust = options$adjust, diagnostics = FALSE)
+              attr(w, "Spec") <- list(weights = weights, bw = bw, kernel = options$kernel, order.by = options$order.by)
               w
           })
 
@@ -603,12 +629,12 @@ setMethod("evalWeights", signature("momentModel"),valueClass="momentWeights",
                           class(gt) <- "momentFct"
                           opt <- object@vcovOptions
                           opt$x <- gt
-                          w <- chol(do.call(meatCL, opt))
+                          w <- chol(do.call(meatCL, opt), pivot=TRUE)
                           type <- "chol"
                       } else {
                           w <- vcovHAC(object, theta)
                           wSpec <- attr(w,"Spec")
-                          w <- chol(w[,])
+                          w <- chol(w[,], pivot=TRUE)
                           type <- "chol"
                       }
                   }
@@ -633,7 +659,8 @@ setMethod("evalGmmObj", signature("momentModel", "numeric", "momentWeights"),
 
 #########################  solveGmm  #########################
 
-setGeneric("solveGmm", function(object, wObj, ...) standardGeneric("solveGmm"))
+setGeneric("solveGmm", function(object, wObj, theta0=NULL, ...)
+    standardGeneric("solveGmm"))
 
 setMethod("solveGmm", signature("linearModel", "momentWeights"),
           function(object, wObj, theta0=NULL, ...)
@@ -655,43 +682,39 @@ setMethod("solveGmm", signature("linearModel", "momentWeights"),
               }
               theta <- c(solve(T1, T2))
               names(theta) <- d$parNames
-              list(theta=theta, convergence=NULL)
+              list(theta=theta, convergence=list())
           })
 
 setMethod("solveGmm", signature("allNLModel", "momentWeights"),
-          function(object, wObj, theta0=NULL, algo=c("optim","nlminb"), ...)
+          function(object, wObj, theta0=NULL, algo=algoObj("optim"), ...)
           {
-                  algo <- match.arg(algo)
-                  if (is.null(theta0))
-                      theta0 <- modelDims(object)$theta0
-                  g <- function(theta, wObj, object)
-                      evalGmmObj(object, theta, wObj)
-                  dg <- function(theta, wObj, object)
-                      {
-                          gt <- evalMoment(object, theta)
-                          n <- nrow(gt)
-                          gt <- colMeans(gt)
-                          G <- evalDMoment(object, theta)
-                          obj <- 2*n*quadra(wObj, G, gt)
-                          obj
-                      }
-                  if (algo == "optim")
-                      {
-                          if ("method" %in% names(list(...)))
-                              res <- optim(par=theta0, fn=g, gr=dg, 
-                                           object=object, wObj=wObj, ...)
-                          else
-                              res <- optim(par=theta0, fn=g, gr=dg, method="BFGS",
-                                           object=object, wObj=wObj, ...)
-                      } else {
-                          res <- nlminb(start=theta0, objective=g, gradient=dg,
-                                        object=object, wObj=wObj, ...)
-                      }
-                  theta <- res$par
-                  names(theta) <- modelDims(object)$parNames
-                  list(theta=theta, convergence=res$convergence)
-              })
-
+              if (!inherits(algo, "minAlgo"))
+                  stop("algo must be an object of class algoObj created by the algoObj function")
+              if (is.null(theta0))
+                  theta0 <- modelDims(object)$theta0
+              g <- function(theta, wObj, model)
+                  evalGmmObj(model, theta, wObj)
+              dg <- function(theta, wObj, model)
+              {
+                  gt <- evalMoment(model, theta)
+                  n <- nrow(gt)
+                  gt <- colMeans(gt)
+                  G <- evalDMoment(model, theta)
+                  obj <- 2*n*quadra(wObj, G, gt)
+                  obj
+              }
+              if (algo@algo == "optim" & !("method" %in% names(list(...))))
+              {
+                  sol <- minFit(object=algo, start=theta0, fct=g, gr=dg, wObj=wObj,
+                                model=object, method="BFGS", ...)
+              } else {
+                  sol <- minFit(object=algo, start=theta0, fct=g, gr=dg, wObj=wObj,
+                                model=object, ...)
+              }
+              list(theta=sol$solution, convergence=list(message=sol$message,
+                                                        code=sol$convergence,
+                                                        algo=algo@algo))
+          })
 
 ##################### momentStrength ####################
 
@@ -716,14 +739,15 @@ setMethod("momentStrength", signature("formulaModel"),
           })
 
 setMethod("momentStrength", signature("linearModel"), 
-          function(object, theta, vcovType=c("OLS","HC","HAC","CL")){
+          function(object, theta){
               spec <- modelDims(object)
+              vcovType <- object@vcov
               getF <- function(i)
               {
                   resu <- lm(X[, i] ~ Z - 1)
-                  v <- switch(vcovType, OLS = vcov(resu),
-                              HC = vcovHC(resu, "HC1"),
-                              HAC = vcovHAC(resu),
+                  v <- switch(vcovType, iid = vcov(resu),
+                              MDS = do.call(vcovHC, c(object@vcovOptions, list(x = resu))),
+                              HAC = do.call(vcovHC, c(object@vcovOptions, list(x = resu))),
                               CL = do.call(vcovCL, c(object@vcovOptions, list(x = resu))))
                   v <- v[!exoInst, !exoInst]
                   b <- coef(resu)[!exoInst]
@@ -733,7 +757,6 @@ setMethod("momentStrength", signature("linearModel"),
               }
               EndoVars <- !(spec$parNames %in% spec$momNames)
               exoInst <- spec$momNames %in% spec$parNames
-              vcovType <- match.arg(vcovType)
               if (all(!EndoVars)) {
                   fstats <- NULL
                   mess <- "No endogenous variables: no strength measure"
@@ -1015,10 +1038,21 @@ setMethod("gmmFit", signature("momentModel"), valueClass="gmmfit",
                      wObj <- evalWeights(model, theta, "optimal")
                      evalGmmObj(model, theta, wObj)
                  }
-                 res <- optim(theta0, obj, model=model,
-                              ...)
-                 theta1 <- res$par
-                 convergence <- res$convergence
+                 dots <- list(...)
+                 if (is.null(dots$algo))
+                 {
+                     algo <- algoObj("optim")
+                 } else {
+                     algo <- dots$algo
+                     dots$algo <-  NULL
+                 }
+                 if (algo@algo == "optim" & !("method" %in% names(dots)))
+                     dots$method <- "BFGS"
+                 dots <- c(dots, list(object=algo, start=theta0, fct=obj, model=model))
+                 res <- do.call("minFit", dots)
+                 theta1 <- res$solution
+                 convergence <- list(message=res$message, code=res$convergence,
+                                     algo=algo@algo)
                  wObj <- evalWeights(model, theta1, "optimal")                 
              }
              model@vcovOptions$bw <- bw
@@ -1056,7 +1090,7 @@ setMethod("tsls", signature("linearModel"), valueClass="tsls",
               efficientGmm <- vcov == "iid"
               wObj <- evalWeights(model, theta, "optimal")
               model@vcov <- vcov
-              obj <- new("tsls", theta=theta, convergence=NULL, type="tsls",
+              obj <- new("tsls", theta=theta, convergence=list(), type="tsls",
                          wObj=wObj, model=model, convIter=NULL, call=Call,
                          niter=1L, efficientGmm=efficientGmm)
               obj
@@ -1076,7 +1110,7 @@ setMethod("evalGmm", signature("momentModel"),
               theta <- setCoef(model, theta)
               if (is.null(wObj))
                   wObj <- evalWeights(model, theta)
-              new("gmmfit", theta=theta, convergence=NULL, convIter=NULL,
+              new("gmmfit", theta=theta, convergence=list(), convIter=NULL,
                   call=Call, type="eval", wObj=wObj, niter=0L, efficientGmm=FALSE,
                   model=model)
           })
@@ -1128,8 +1162,12 @@ setMethod("update", "momentModel",
                       }
                   }
               }
+              newVcov <- FALSE
               if (!is.null(arg[["vcov"]]) && !object@smooth)
+              {
+                  newVcov <- arg[["vcov"]] != object@vcov
                   object@vcov <- arg[["vcov"]]
+              }
               if (object@vcov == "HAC" || object@smooth)
               {                  
                   if (is.null(arg$vcovOptions))
@@ -1143,6 +1181,19 @@ setMethod("update", "momentModel",
                                                      object@smooth)              
                   if (object@smooth && !identical(arg$vcovOptions, object@vcovOptions))
                       chk <- TRUE
+                  object@vcovOptions <- arg$vcovOptions
+              } else {
+                  if (is.null(arg$vcovOptions))
+                      arg$vcovOptions <- list()
+                  if (newVcov)
+                      object@vcovOptions <- list()
+                  if (length(object@vcovOptions))
+                  {
+                      tmp <- c(arg$vcovOptions, list(object=object@vcovOptions))
+                      arg$vcovOptions <- do.call(update, tmp)
+                  }
+                  arg$vcovOptions <- .getVcovOptions(object@vcov, NULL, arg$vcovOptions,
+                                                     FALSE)
                   object@vcovOptions <- arg$vcovOptions
               }
               if (is.null(arg$survOptions))
@@ -1266,14 +1317,18 @@ setMethod("solveGel", signature("momentModel"),
               }
               if (is.null(lambda0))
                   lambda0 <- rep(0, modelDims(object)$q)
-              if (is.null(theta0))
+              if (is.null(lamSlv))
+                  lamSlv <- getLambda
+              if (modelDims(object)$k == 0)
+                  return(evalGel(object, theta=numeric(), gelType=gelType,
+                                 rhoFct=rhoFct, lambda0=lambda0, lamSlv=lamSlv,
+                                 lControl=lControl))
+             if (is.null(theta0))
               {
                   if (!("theta0"%in%slotNames(object)))
                       stop("theta0 must be provided")
                   theta0 <- modelDims(object)$theta0
-              }
-              if (is.null(lamSlv))
-                  lamSlv <- getLambda
+              }              
               if (coefSlv == "nlminb")
               {
                   args <- c(list(start=theta0, objective=f, gelType=gelType,
@@ -1285,12 +1340,27 @@ setMethod("solveGel", signature("momentModel"),
                                  slv=lamSlv, lcont=lControl, gelType=gelType,
                                  rhoFct=rhoFct, restrictedLam=.restrictedLam), tControl)
               }
-              res <- do.call(get(coefSlv), args)
-              resl <- f(res$par,  object, lambda0, lamSlv, gelType=gelType,
-                        rhoFct=rhoFct, lControl, TRUE, .restrictedLam)
-              names(resl$lambda) <- modelDims(object)$momNames
-              theta <- res$par
-              names(theta) <- modelDims(object)$parNames                  
+              res <- suppressWarnings(try(do.call(get(coefSlv), args), silent=TRUE))
+              if (inherits(res, "try-error"))
+              {
+                  theta <- as.numeric(rep(NA), length(theta0))
+                  resl <- f(theta0,  object, lambda0, lamSlv, gelType=gelType,
+                            rhoFct=rhoFct, lControl, TRUE, .restrictedLam)
+                  warning(paste("Failed to estimate the model\n",
+                                "The error message from the the solver is:\n\t",
+                                res, "\n",
+                                ifelse(resl$convergence$convergence==0, "",
+                                       paste("Error from the Lambda solver at the initial parameter value:\n",
+                                             paste(resl$convergence$message, collapse="\n")))))
+                            
+                  res <- list(convergence=12)
+              } else {                  
+                  resl <- f(res$par,  object, lambda0, lamSlv, gelType=gelType,
+                            rhoFct=rhoFct, lControl, TRUE, .restrictedLam)
+                  names(resl$lambda) <- modelDims(object)$momNames
+                  theta <- res$par
+                  names(theta) <- modelDims(object)$parNames
+              }
               list(theta=theta, convergence=res$convergence,
                    lambda=resl$lambda, lconvergence=resl$convergence,
                    restrictedLam=.restrictedLam)
@@ -1310,6 +1380,10 @@ setMethod("gelFit", signature("momentModel"), valueClass="gelfit",
                   Call <- NULL
               spec <- modelDims(model)
               initTheta = match.arg(initTheta)
+              argsCall <- c(list(initTheta=initTheta, theta0=theta0, lambda0=lambda0,
+                                 vcov=vcov),
+                            list(...))
+                  
               if (is.null(theta0))
               {
                   if (initTheta == "gmm")
@@ -1328,7 +1402,8 @@ setMethod("gelFit", signature("momentModel"), valueClass="gelfit",
                             lambda=res$lambda, call=Call,
                             gelType=list(name=gelType, rhoFct=rhoFct),
                             vcov=list(), model=model,
-                            restrictedLam = res$restrictedLam)
+                            restrictedLam = res$restrictedLam,
+                            argsCall=argsCall)
               if (vcov)
                   gelfit@vcov <- vcov(gelfit)
               gelfit
@@ -1362,22 +1437,29 @@ setMethod("evalGel", signature("momentModel"),
                   k <- model@sSpec@k
                   args <- c(list(gmat=gt, gelType=gelType,
                                  rhoFct=rhoFct, restrictedLam=.restrictedLam),
-                            lControl, k=k[1]/k[2])
+                            lControl, k=k[1]/k[2], list(...))
                   if (is.null(lamSlv))
                       lamSlv <- getLambda
                   res <- do.call(lamSlv, args)
                   lambda <- res$lambda
+                  mes <- res$convergence$message
                   lconvergence <- res$convergence$convergence
+                  if (lconvergence != 0)
+                      warning(paste("Failed to solve for the Lambdas\n",
+                                    ifelse(is.null(mes), "",
+                                           paste("Error from the Lambda solver:\n",
+                                                 paste(mes, collapse="\n")))))
                   type <- paste(type, " with optimal lambda", sep="")
               } else {
-                  lconvergence <- 1
+                  lconvergence <- as.numeric(NA)
                   type <- paste(type, " with fixed lambda", sep="")
                   .restrictedLam <- integer()
               }
               names(lambda) <- spec$momNames
               if (!is.null(rhoFct))
-                  gelType <- "Other"
-              new("gelfit", theta=theta, convergence=1, lconvergence=lconvergence,
+                  gelType <- "Other"              
+              new("gelfit", theta=theta, convergence=as.numeric(NA),
+                  lconvergence=lconvergence,
                   lambda=lambda, call=Call, gelType=list(name=gelType, rhoFct=rhoFct),
                   vcov=list(), model=model, restrictedLam = .restrictedLam)
           })

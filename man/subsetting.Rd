@@ -15,7 +15,6 @@
 \alias{[,regModel,numeric,missing-method}
 \alias{[,functionModel,numeric,missing-method}
 \alias{[,formulaModel,numeric,missing-method}
-\alias{[,rfunctionModel,numeric,missing-method}
 \alias{[,sysModel,missing,list-method}
 \alias{[,snonlinearModel,numeric,missing-method}
 \alias{[,sfunctionModel,numeric,missing-method}

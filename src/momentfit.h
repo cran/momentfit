@@ -12,4 +12,7 @@ void F77_SUB(lamcuep)(double *gt, int *n, int *q, double *k,
 		       int *maxit, int *conv, double *lam,
 		       double *pt, double *obj);
 
+void F77_SUB(pinv)(double *x, int *m, int *n, int *r,
+		   double *l);
+
 #endif		     

@@ -353,6 +353,43 @@ setValidity("formulaModel", .checkForm)
 
 setValidity("functionModel", .checkFunc)
 
+.checkAllNLRest <- function(object)
+{
+    error <- character()
+    R <- object@R
+    tR <- sapply(R, function(ri) inherits(ri, "formula"))
+    if (!all(tR))
+    {
+        error <- c(error,
+                   "R must be a list of formulas")
+    } else {
+        chk <- sapply(R, function(ri) {
+            chk1 <- length(ri) == 3
+            if (!chk1) return(FALSE)
+            ri <- as.character(ri[[2]])
+            if (length(ri) != 1) return(FALSE)
+            ri %in% object@parNames})
+        if (!all(chk))
+        {
+            msg <- paste("Something is wrong with restriction",
+                         ifelse(sum(!chk)>1, "s ", " "),
+                         paste(which(!chk), collapse=", ", sep=""), ". ",
+                         "They must expressed as a formula with one coefficient",
+                         " as a function of the others",
+                         " and all coefficients in the restriction must be in ",
+                         "the nonrestricted model", sep="")
+            error <- c(error, msg)
+        }
+    }
+    if (length(error)==0)
+        TRUE
+    else
+        error
+}
+
+setValidity("rfunctionModel", .checkAllNLRest)
+setValidity("rnonlinearModel", .checkAllNLRest)
+setValidity("rformulaModel", .checkAllNLRest)
 
 .checkMomentWeights <- function(object)
 {
@@ -408,9 +445,9 @@ setValidity("functionModel", .checkFunc)
     }
     if (length(object@wSpec)>0)
     {
-        if (!all(names(object@wSpec) %in% c("bw", "kernel","weights")))
+        if (!all(names(object@wSpec) %in% c("bw", "kernel","weights", "order.by")))
         {
-            msg <- "wSpec must contain 'bw', 'kernel', and 'weights'"
+            msg <- "wSpec must contain 'bw', 'kernel', order.by and 'weights'"
             error <- c(error, msg)
         }
     }
@@ -531,5 +568,44 @@ setValidity("momentWeights", .checkMomentWeights)
 }
 
 setValidity("sysMomentWeights", .checkSysWeights)
+
+
+.checkAlgo <- function(object)
+{
+    error <- character()
+    fct <- try(get(object@algo), silent=TRUE)
+    if (inherits(fct, "try-error"))
+    {
+        msg <- paste("The algorithm ", object@algo,
+                     " does not exist (have you loaded the package?)", sep="")
+        error <- c(error, msg)
+    } else {
+        if (!is.function(fct))
+        {
+            msg <- paste("The algorithm ", object@algo,
+                         " must be a function.", sep="")
+            error <- c(error, msg)
+        } else {
+            args <- names(as.list(args(fct)))
+            if (!(object@fct %in% args))
+                error <- c(error,
+                           paste(object@fct,
+                                 " is not an argument of ", object@algo, sep=""))
+            if (!(object@start %in% args))
+                error <- c(error,
+                           paste(object@start,
+                                 " is not an argument of ", object@algo, sep=""))
+            if ("grad" %in% slotNames(object))
+                if (!is.na(object@grad))
+                    if (!(object@start %in% args))
+                        error <- c(error,
+                                   paste(object@grad,
+                                         " is not an argument of ", object@algo, sep=""))
+        }
+    }
+    error
+}
+
+setValidity("minAlgo", .checkAlgo) 
 
 

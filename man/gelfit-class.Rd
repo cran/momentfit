@@ -21,6 +21,7 @@ It is created by \code{\link{gelFit}}.
     \item{\code{vcov}:}{Object of class \code{"list"} ~~ }
     \item{\code{model}:}{Object of class \code{"momentModel"} ~~ }
     \item{\code{restrictedLam}:}{Object of class \code{"integer"} ~~ }
+    \item{\code{argsCall}:}{Object of class \code{"list"} ~~ }
   }
 }
 \section{Methods}{

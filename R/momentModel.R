@@ -9,7 +9,7 @@
                                crit = 1e-06,
                                bw = "Andrews", prewhite = 1L,
                                ar.method = "ols", approx = "AR(1)", 
-                               tol = 1e-07)
+                               tol = 1e-07, adjust=TRUE, order.by=NULL)
                 if (length(addO) > 0)
                     {
                         if (!all(names(addO) %in% names(option)))
@@ -28,6 +28,23 @@
                 else
                     if (!existsFunction(paste("bw",option$bw,sep="")))
                         stop("The bandwidth function does not exist")
+                if (!is.null(option$order.by))
+                {
+                    if (!inherits(option$order.by, c("numeric","integer","formula")))
+                        stop("order.by must be either a numeric or integer  vector, or a formula")
+                    if (inherits(option$order.by, c("numeric", "integer")))
+                        if (length(option$order.by) != nrow(data))
+                            stop("order.by must have the same length as the number of rows in data")
+                    if (inherits(option$order.by, "formula"))
+                    {
+                        fn <- all.vars(option$order.by[[length(option$order.by)]])
+                        if (length(fn)>1)
+                            stop("The order.by formula must contain only one variable.")
+                        option$order.by <- try(data[[fn]], silent=TRUE)
+                        if (inherits(option$order.by,"try-error"))
+                            stop("The variable in the order.by formula is not in data")
+                    }
+                }
             } else if (type=="CL") {
                 option <- list(cluster=NULL, type="HC0", cadjust=TRUE,
                                multi0=FALSE)
@@ -56,6 +73,14 @@
                     }
                 if (option$type != "HC0")
                     stop("Only meatCL with type HC0 is allowed")
+            } else if (type=="MDS") {
+                option <- list(type="HC3")
+                if (length(addO) > 0)
+                {
+                    if (!all(names(addO) %in% names(option)))
+                        stop(paste("Wrong options for vcov of type", type))
+                    option[names(addO)] <- addO
+                }
             } else {
                 option <- list()
             }
@@ -105,7 +130,7 @@ momentModel <- function(g, x=NULL, theta0=NULL,grad=NULL,
                     {
                         model <- .lModelData(g,x,data, survOptions, vcovOptions, na.action)
                         if (!is.null(model$eqnNames))
-                        {                            
+                        {
                             gmodel <- new("slinearModel", data = model$data,
                                           instT=model$instT, 
                                           modelT = model$modelT, vcov = vcov,
