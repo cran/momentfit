@@ -17,7 +17,7 @@ setMethod("quadra", c("momentWeights", "matrixORnumeric", "missing"),
                       obj <- crossprod(x,w@w)%*%x
                   } else {
                       piv <- switch(w@type,
-                                    chol = attr(w, "pivot"),
+                                    chol = attr(w@w, "pivot"),
                                     qr = w@w$pivot,
                                     NULL)
                       if (genInv)
@@ -68,7 +68,7 @@ setMethod("quadra", c("momentWeights", "matrixORnumeric", "matrixORnumeric"),
                       obj <- crossprod(x,w@w)%*%y
                   } else {
                       piv <- switch(w@type,
-                                    chol = attr(w, "pivot"),
+                                    chol = attr(w@w, "pivot"),
                                     qr = w@w$pivot,
                                     NULL)
                       if (genInv)
@@ -119,7 +119,7 @@ setMethod("quadra", c("momentWeights", "missing", "missing"),
                       obj <- w@w
                   } else {
                       piv <- switch(w@type,
-                                    chol = attr(w, "pivot"),
+                                    chol = attr(w@w, "pivot"),
                                     qr = w@w$pivot,
                                     NULL)
                       if (genInv)

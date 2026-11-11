@@ -1075,13 +1075,13 @@ alternatives. For some high dimensional and/or highly nonlinear
 models, it may be worth trying other solvers, because \textit{optim}
 may sometimes be unreliable. For example, you can find a list of
 recommended optimization solvers on
-\href{https://hwborchers.lima-city.de/Optimist/selectedSolvers/}{Hans
-  W Borchers} page. The problem with the different solvers is that
-they differ in terms of inputs and outputs. My solution was to create
-a new class of solvers with associated methods that take the same
-arguments and returns the same values. The class is created by
-\textit{algoObj}. For the build-in solvers we only need to input the
-function names. For example, we can create the following objects:
+\href{https://hwborchers.lima-city.de}{Hans W Borchers} page. The
+problem with the different solvers is that they differ in terms of
+inputs and outputs. My solution was to create a new class of solvers
+with associated methods that take the same arguments and returns the
+same values. The class is created by \textit{algoObj}. For the
+build-in solvers we only need to input the function names. For
+example, we can create the following objects:
 
 <<>>=
 algo1 <- algoObj("optim")

@@ -73,6 +73,7 @@
 
 .checkLin <- function(object)
 {
+    object <- as(object, "linearModel")
     ny <- NCOL(object@modelF[[1L]])
     nM <- nrow(object@modelF)
     nI <- nrow(object@instF)
@@ -169,13 +170,14 @@ setValidity("linearModel", .checkLin)
     if (length(error)==0)
         TRUE
     else
-        error              
+        error
 }
 
 setValidity("rlinearModel", .checkRestLin)
 
 .checkNLin <- function(object)
 {
+    object <- as(object, "nonlinearModel")
     nM <- nrow(object@modelF)
     nI <- nrow(object@instF)
     k <-  length(object@theta0)
@@ -191,7 +193,7 @@ setValidity("rlinearModel", .checkRestLin)
                      "in modelF and instF",sep="")
         error <- c(error, msg)
     }            
-    mom <- try(evalMoment(object, object@theta0))        
+    mom <- try(evalMoment(object, object@theta0))
     if (inherits(mom, "try-error"))
     {
         msg <- paste("Cannot evaluate the moments at theta0\n",
@@ -242,6 +244,7 @@ setValidity("nonlinearModel", .checkNLin)
 
 .checkForm <- function(object)
 {
+    object <- as(object, "formulaModel")
     n <- nrow(object@modelF)
     error <- .checkBased(object, n)        
     k <-  length(object@theta0)
@@ -287,7 +290,7 @@ setValidity("formulaModel", .checkForm)
 
 .checkFunc <- function(object)
 {
-    
+    object <- as(object, "functionModel")
     mom <- try(object@fct(object@theta0, object@X))
     k <-  length(object@theta0)
     error <- character()
@@ -459,8 +462,6 @@ setValidity("rformulaModel", .checkAllNLRest)
 
 setValidity("momentWeights", .checkMomentWeights)
 
-
-
 .checkSysWeights <- function(object)
 {
     error <- character()
@@ -568,7 +569,6 @@ setValidity("momentWeights", .checkMomentWeights)
 }
 
 setValidity("sysMomentWeights", .checkSysWeights)
-
 
 .checkAlgo <- function(object)
 {

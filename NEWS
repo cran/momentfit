@@ -1,3 +1,7 @@
+Changes in version 1.0-1
+
+o Fixed a bug with HAC weighting matrix. There was an issue when the pivoting of its cholesky decomposition was not 1 to q. 
+
 Changes in version 1.0
 
 o Added Bartlett correction for EL-confidence interval of the mean.

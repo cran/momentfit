@@ -1,6 +1,6 @@
 Package: momentfit
-Version: 1.0
-Date: 2025-08-25
+Version: 1.0-1
+Date: 2026-11-11
 Title: Methods of Moments
 Authors@R: person(given="Pierre", family="Chausse", role=c("aut","cre"),
 	     	    email="pchausse@uwaterloo.ca")
@@ -19,8 +19,11 @@ Collate: 'allClasses.R' 'validity.R' 'momentData.R'
         'sgmmfit-methods.R' 'gmm4.R' 'gel.R' 'gelfit-methods.R'
         'gel4.R' 'weak.R' 'minAlgo.R' 'utils.R'
 License: GPL (>= 2)
+URL: https://codeberg.org/pchausse/momentfit,
+        https://pchausse.r-universe.dev/momentfit
+BugReports: https://codeberg.org/pchausse/momentfit/issues
 NeedsCompilation: yes
 VignetteBuilder: knitr
-Packaged: 2025-08-26 16:01:12 UTC; pierrechausse
+Packaged: 2026-11-11 18:32:16 UTC; pierrechausse
 Repository: CRAN
-Date/Publication: 2025-08-26 20:30:02 UTC
+Date/Publication: 2026-11-11 20:00:02 UTC
